@@ -1,5 +1,14 @@
 Revision history for Perl extension CGI::Application::Dispatch.
 
+1.02
+    - Added mod_perl 2 support
+    - Added TABLE dispatch option
+    - fixed bug with a PATH_INFO value of '/'
+    - fixed bug where DEFAULT doesn't have an initial '/'
+    - fixed testing issues when Apache::TestMB is not installed [Cees Hek]
+    - fixed security whole with reqard to untainting module names [Cees Hek]
+    - minor documentation improvements
+
 1.01
     - moved dependancy on perl 5.8.x to 5.6.x since method attributes were include
     - added Apache::Test as a build dependancy

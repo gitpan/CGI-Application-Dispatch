@@ -1,10 +1,10 @@
 use strict;
 use warnings FATAL => 'all';
-use Apache::Test qw(plan ok have_lwp);
+use Apache::Test qw(plan ok have_lwp need_module);
 use Apache::TestRequest qw(GET);
 use Apache::TestUtil qw(t_cmp);
 
-plan( tests => 20, have_lwp() );
+plan tests => 24, need_module 'Apache::TestMB', have_lwp();
 
 my $response;
 my $content;
@@ -67,7 +67,7 @@ my $content;
 }
 
 # 13..14
-# make sure that CGIAPP_DISPATH_DEFAULT is used correctly (with RM On)
+# make sure that CGIAPP_DISPATCH_DEFAULT is used correctly (with RM On)
 {
     $response = GET '/app5';
     ok($response->is_success);
@@ -76,7 +76,7 @@ my $content;
 }
 
 # 15..16
-# make sure that CGIAPP_DISPATH_DEFAULT is used correctly (with RM On)
+# make sure that CGIAPP_DISPATCH_DEFAULT is used correctly (with RM On)
 {
     $response = GET '/app6';
     ok($response->is_success);
@@ -101,4 +101,19 @@ my $content;
     $content = $response->content;
     ok($content =~ /MyApp::Module::Name->rm2/);
 }
+
+# 21..24
+# lets test CGIAPP_DISPATCH_TABLE with PerlSetVar/PerlAddVar
+{
+    $response = GET '/app9/foo/rm2';
+    ok($response->is_success);
+    $content = $response->content();
+    ok($content =~ /MyApp::Module::Name->rm2/);
+
+    $response = GET '/app9/bar/rm1';
+    ok($response->is_success);
+    $content = $response->content();
+    ok($content =~ /MyApp::Module::Name->rm1/);
+}
+
 

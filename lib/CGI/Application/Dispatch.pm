@@ -4,7 +4,23 @@ use warnings;
 use Carp;
 
 $CGI::Application::Dispatch::Error = '';
-$CGI::Application::Dispatch::VERSION = '1.01';
+$CGI::Application::Dispatch::VERSION = '1.02';
+my $MP2;
+
+BEGIN {
+    if( $ENV{MOD_PERL} ) {
+        require mod_perl;
+        $MP2 = $mod_perl::VERSION >= 1.99 ? 1 : 0;
+        if( $MP2 ) {
+            require Apache::Const;
+            require Apache::RequestUtil;
+            require Apache::RequestRec;
+            require APR::Table;
+        } else {
+            require Apache::Constants;
+        }
+    }
+}
 
 =pod
 
@@ -34,6 +50,10 @@ CGI::Application::Dispatch - Class used to dispatch request to CGI::Application 
 This module provides a way (as a mod_perl handler or running under vanilla CGI) to look at 
 the path (C<< $r->path_info >> or C<< $ENV{PATH_INFO} >>) of the incoming request, parse 
 off the desired module and it's run mode, create an instance of that module and run it.
+
+It currently supports both generations of mod_perl (1.x and 2.x). Although, for simplicity,
+all examples involving apache configuration and mod_perl code will be shown using mod_perl 1.x.
+This may change as mp2 usage increases.
 
 In addition, the portion of the C<PATH_INFO> that is used to derive the module name is
 also passed to the C<PARAMS> of the modules C<<new()>> as CGIAPP_DISPATCH_PATH. This can 
@@ -102,7 +122,63 @@ By default it is true.
 This option will set a default value if there is no C<< $ENV{PATH_INFO} >>. It will be parsed
 to obtain the module name and run mode (if you don't have C<< CGIAPP_DISPATCH_RM >> set to 
 false.
- 
+
+=head2 CGIAPP_DISPATCH_TABLE
+
+This option will tell CGI::Application::Dispatch to use either a provided hash or subroutine
+to translate the C<< $ENV{PATH_INFO} >> into the module name. The retrieved value will also
+be combined with the L<CGIAPP_DISPATCH_PREFIX> value if it exists.
+
+=over 8
+
+=item * TABLE with mod_perl
+
+If you are using this under mod_perl and enjoy using PerlAddVar directives, then your httpd.conf
+might look something like this (under mod_perl 1)
+
+
+  <Location /app>
+    SetHandler perl-script
+    PerlHandler CGI::Application::Dispatch
+    PerlSetVar CGIAPP_DISPATCH_PREFIX MyApp
+    PerlSetVar CGIAPP_DISPATCH_RM Off
+
+    PerlSetVar CGIAPP_DISPATCH_TABLE foo
+    PerlAddVar CGIAPP_DISPATCH_TABLE Some::Name
+    PerlAddVar CGIAPP_DISPATCH_TABLE bar
+    PerlAddVar CGIAPP_DISPATCH_TABLE Some::OtherName
+    PerlAddVar CGIAPP_DISPATCH_TABLE baz
+    PerlAddVar CGIAPP_DISPATCH_TABLE Yet::AnotherName
+  </Location>
+
+And then Dispatch will turn the all those PerlSetVar and PerlAddVars into a hash.
+
+=item * TABLE with vanilla CGI
+
+Or if you are using Dispatch under vanilla cgi then an equivalent .cgi script would be:
+
+  #!/usr/bin/perl
+  use strict;
+  use CGI::Application::Dispatch;
+
+  CGI::Application::Dispatch->dispatch(
+    PREFIX  => 'MyApp',
+    RM      => 0,
+    TABLE   => {
+        'foo'     => 'Some::Name',
+        'bar'     => 'Some::OtherName',
+        'baz'     => 'Yet::AnotherName',
+    },
+  );
+
+=back
+
+In all these cases a url or '/foo/rm2' will be translated into the module 
+'MyApp::Some::Name' and run mode 'rm2'. This will allow more flexibility
+in PATH_INFO to module name translation and also provide more security for
+those who want to restrict what options are available for translation. If
+the PATH_INFO contains a value that is not a key in your table hash, then
+Dispatch will t
 
 =head1 METHODS
 
@@ -131,15 +207,30 @@ So, a url of C<< /app/module_name >> would create an instance of C<< MyApp::Modu
 
 sub handler : method {
     my ($self, $r) = @_;
-    require Apache::Constants;
     $CGI::Application::Dispatch::Error = '';
 
     #get the run_mode from the path_info
     my $dir_args = $r->dir_config();
-    my $path  = $r->path_info() || $dir_args->{CGIAPP_DISPATCH_DEFAULT};
+    my $path_info  = $r->path_info();
+    # if we don't have a path_info or it's just '/' then use the default
+    if( !$path_info || $path_info eq '/') {
+        $path_info = $dir_args->{CGIAPP_DISPATCH_DEFAULT};
+    }
 
-    my ($module, $partial_path) = $self->get_module_name($path, $dir_args->{CGIAPP_DISPATCH_PREFIX});
-    $module = _require_module($module);
+    my ($module, $partial_path);
+    # get the dispatch TABLE if we have it
+    my $table;
+    my @table_dirs = $r->dir_config->get('CGIAPP_DISPATCH_TABLE');
+    if( @table_dirs ) {
+        $table = { @table_dirs };
+    }
+    # get the module's name and the PATH
+    ($module, $partial_path) = $self->get_module_name(
+            $path_info, 
+            $dir_args->{CGIAPP_DISPATCH_PREFIX},
+            $table,
+        );
+    $module = $self->require_module($module);
 
     #if we couldn't require that mod
     if ($CGI::Application::Dispatch::Error) {
@@ -148,12 +239,12 @@ sub handler : method {
         $module_path =~ s/::/\//g;
 
         if ( $CGI::Application::Dispatch::Error =~ /Can't locate $module_path.pm/ ) {
-            return Apache::Constants::NOT_FOUND();
+            return $MP2 ? Apache::NOT_FOUND() : Apache::Constants::NOT_FOUND();
         }
         #else there was some other error
         else {
             warn "CGI::Application::Dispatch - ERROR $CGI::Application::Dispatch::Error";
-            return Apache::Constants::SERVER_ERROR();
+            return $MP2 ? Apache::SERVER_ERROR() : Apache::Constants::SERVER_ERROR();
         }
     }
 
@@ -167,12 +258,12 @@ sub handler : method {
 
     #set the run_mode if we want to
     unless ($dir_args->{CGIAPP_DISPATCH_RM} && ( lc $dir_args->{CGIAPP_DISPATCH_RM} eq 'off') ) {
-        my $rm = $self->get_runmode($path);
+        my $rm = $self->get_runmode($path_info);
         $app->mode_param( sub { return $rm } ) if ($rm);
     }
 
     $app->run();
-    return Apache::Constants::OK();
+    return $MP2 ? Apache::OK() : Apache::Constants::OK();
 }
 
 
@@ -214,12 +305,23 @@ sub dispatch {
     my %args = @_;
     $CGI::Application::Dispatch::Error = '';
 
-    my $path_info = $ENV{PATH_INFO} || $args{CGIAPP_DISPATCH_DEFAULT} || $args{DEFAULT};
-    my ($module, $partial_path) = $self->get_module_name(
-            $path_info,
-            ($args{CGIAPP_DISPATCH_PREFIX} || $args{PREFIX})
+    # get the PATH_INFO
+    my $path_info = $ENV{PATH_INFO};
+    my $prefix = ($args{CGIAPP_DISPATCH_PREFIX} || $args{PREFIX});
+    if( !$path_info || $path_info eq '/' ) {
+        $path_info = $args{CGIAPP_DISPATCH_DEFAULT} || $args{DEFAULT};
+    } 
+    # find out if we have a dispatch table
+    my $table = $args{CGIAPP_DISPATCH_TABLE} || $args{TABLE} || undef;
+    # get the module name and the path
+    my ($module, $partial_path) = $self->get_module_name( 
+            $path_info, 
+            $prefix,
+            $table,
     );
-    $module = _require_module($module);
+
+    # require the module or croak if we can't
+    $module = $self->require_module($module);
 
     croak $CGI::Application::Dispatch::Error
         if($CGI::Application::Dispatch::Error);
@@ -233,41 +335,69 @@ sub dispatch {
     $use_rm = defined($use_rm) ? $use_rm : 1;
     unless(!$use_rm) {
         my $run_mode = $self->get_runmode($path_info);
-        $app->mode_param(sub { return $run_mode });
+        $app->mode_param(sub { return $run_mode })
+            if( $run_mode );
     }
-
     $app->run();
 }
 
-=head2 get_module_name($path_info, $prefix)
+=head2 get_module_name($path_info, $prefix, [$table])
 
 This method is used to control how the module name is generated from the C<PATH_INFO>. 
 Please see L<"PATH_INFO Parsing"> for more details on how this method performs it's job. 
 The main reason that this method exists is so that it can be overridden if it doesn't do 
 exactly what you want.
 
+This method will recieve three arguments in the following order:
+
+=over 8
+
+=item * $path_info
+
+The PATH_INFO string
+
+=item * $prefix
+
+The value of the CGIAPP_DISPATCH_PREFIX parameter.
+
+=item * $table
+
+A hash reference containing the value of the CGIAPP_DISPATCH_TABLE
+parameter.
+
+=back
+
 This method will return the name of the module to create. Actually it returns a list of items,
 the first being the name of the module, the second being the specific substring of the C<PATH_INFO>
 that was used to create the module name. If you decide to override this method to customize 
 the PATH_INFO-to-module-name-creation then you must also return this section of the C<PATH_INFO>
-that you used if it's not the same as the default. Otherwise the value of the 
+that you used if it's not the same as the default. Otherwise the value of 
+L<CGIAPP_DISPATCH_PREFIX> will be C<< undef >>.
 
 =cut
 
 sub get_module_name {
-    my ($self, $path_info, $prefix) = @_;
+    my ($self, $path_info, $prefix, $table) = @_;
+
+    # make sure that there is at least a first '/'
+    $path_info = "/$path_info" if(index($path_info, '/') != 0);
 
     # get the stuff between first and second '/' (if there is a second '/')
-    my $app = (split(/\//, $path_info))[1];   
+    my $partial_path = (split(/\//, $path_info))[1];   
 
     # if we are trying to access a mod
-    if ($app) {
+    if ($partial_path) {
         # Now translate the module from 'module_name' to 'Module::Name'
-        my $module = $app;
-        $module = join( '::', ( map { ucfirst } ( split( /_/, $module ) ) ) );
+        my $module = $partial_path;
+        # use the dispatch table if we have one
+        if( $table ) {
+            $module = $table->{$module};
+        } else {
+            $module = join( '::', ( map { ucfirst } ( split( /_/, $module ) ) ) );
+        }
         # putting the prefix on if necessary
         $module = "${prefix}::${module}" if($prefix);
-        return ($module, $app);
+        return ($module, $partial_path);
     }
     return undef;
 }
@@ -289,9 +419,33 @@ sub get_runmode {
 }
 
 
-sub _require_module {
-    my $module = shift;
-    ($module) = ($module =~ /(.*)/);    #untaint the module name
+=head2 require_module($module_name)
+
+This class method is used internally by CGI::Application::Dispatch to take a module
+name (supplied by L<get_module_name>) and require it in a secure fashion. It
+is provided as a public class method so that if you override other functionality of
+this module, you can still safely require user specified modules. If there are
+any problems requiring the named module, the C<< $CGI::Application::Dispatch::Error >>
+variable will be set.
+
+
+    CGI::Application::Dispatch->require_module('MyApp::Module::Name');
+
+    if( $CGI::Application::Dispatch::Error ) {
+        die "Could not require module MyApp::Module::Name "
+            . $CGI::Application::Dispatch::Error
+    }
+
+=cut
+
+sub require_module {
+    my ($self, $module) = @_;
+    #untaint the module name
+    ($module) = ($module =~ /^([A-Za-z][A-Za-z0-9_\-\:\']+)$/);   
+    unless ($module) {
+      $CGI::Application::Dispatch::Error = "Invalid characters used in module name";
+      return;
+    }
     eval "require $module";
 
     $CGI::Application::Dispatch::Error = $@ if $@;
@@ -311,7 +465,8 @@ the C<PATH_INFO> and what options you have to customize the process.
 
 =head2 Getting the module name
 
-To put it simply, the C<PATH_INFO> is split on backslahes (C</>). The second element of the
+To put it simply, if you don't use a L<CGIAPP_DISPATCH_TABLE> then the C<PATH_INFO> 
+is split on backslahes (C</>). The second element of the
 returned list is used to create the application module. So if we have a path info of
 
     /module_name/mode1
@@ -323,9 +478,11 @@ is captialized.
 Then the C<CGIAPP_DISPATCH_PREFIX> is added to the beginning of this new module name with
 a double colon C<::> separating the two. 
 
-If you don't like the exact way that this is done, don't fret you do have an option. Just
-override the L<get_module_name()|"get_module_name($path_info, $prefix)"> method by writing 
-your own dispatch class that inherits from CGI::Application::Dispatch. 
+If you don't like the exact way that this is done, don't fret you do have a couple of options. 
+First, you can specify a L<CGIAPP_DISPATCH_TABLE> on a project-by-project basis to explicitly
+perform the C<PATH_INFO> to module-name translation. If you are looking for something more generic
+that you can later reuse, you can subclass Dispatch and override the 
+L<get_module_name()|"get_module_name($path_info, $prefix)"> to do whatever you wish.
 
 =head2 Getting the run mode
 
@@ -351,11 +508,6 @@ L<Apache::Request>) should not be affected. But, since the run mode may be deter
 CGI::Application::Dispatch having a query argument named 'rm' will be ignored by your application
 module (unless your CGIAPP_DISPATCH_RM is false).
 
-=item * ALPHA software
-
-This module is still alpha software so please use it with that in mind. It is still possible that
-the API will change (and may even become unrecognizable) so please remeber to keep up to date.
-
 =back
 
 =head1 AUTHOR
@@ -380,6 +532,8 @@ L<http://www.cgi-app.org/>
 =item * James Freeman <james.freeman@smartsurf.org>
 
 =item * Michael Graham <magog@the-wire.com>
+
+=item * Cees Hek <ceeshek@gmail.com>
 
 =back
 

@@ -1,4 +1,4 @@
-use Test::More (tests => 14);
+use Test::More (tests => 17);
 use strict;
 use lib './t/lib';
 
@@ -33,7 +33,6 @@ my $output = '';
 # make sure it grabs the RM correctly from the PATH_INFO if RM is true
 {
     local $ENV{PATH_INFO} = '/module_name/rm2';
-    my $output;
     $output = CGI::Application::Dispatch->dispatch(
         PREFIX => 'MyApp',
         RM => 1,
@@ -45,7 +44,6 @@ my $output = '';
 # make sure it grabs the RM correctly from the PATH_INFO if RM is undefined
 {
     local $ENV{PATH_INFO} = '/module_name/rm2';
-    my $output;
     $output = CGI::Application::Dispatch->dispatch(
         PREFIX => 'MyApp',
     );
@@ -56,7 +54,6 @@ my $output = '';
 # make sure it doesn't grab the run mode when RM is false
 {
     local $ENV{PATH_INFO} = '/module_name/rm2';
-    my $output;
     $output = CGI::Application::Dispatch->dispatch(
         PREFIX => 'MyApp',
         RM => 0,
@@ -68,7 +65,6 @@ my $output = '';
 # make sure extra things passed to dispatch() get passed into new()
 {
     local $ENV{PATH_INFO} = '/module_name/rm3';
-    my $output;
     $output = CGI::Application::Dispatch->dispatch(
         PREFIX  => 'MyApp',
         RM      => 1,
@@ -83,7 +79,6 @@ my $output = '';
 # make sure that we have a correct CGIAPP_DISPATCH_PATH
 {
     local $ENV{PATH_INFO} = '/module_name/rm4';
-    my $output;
     $output = CGI::Application::Dispatch->dispatch(
         PREFIX  => 'MyApp',
         RM      => 1,
@@ -95,7 +90,6 @@ my $output = '';
 # let's test that the DEFAULT is used
 {
     local $ENV{PATH_INFO} = '';
-    my $output;
     $output = CGI::Application::Dispatch->dispatch(
         PREFIX  => 'MyApp',
         RM      => 1,
@@ -108,7 +102,6 @@ my $output = '';
 # make sure we can override get_module_name()
 {
     local $ENV{PATH_INFO} = '';
-    my $output;
     $output = MyApp::Dispatch->dispatch(
         RM      => 0,
     );
@@ -119,9 +112,46 @@ my $output = '';
 # make sure we can override get_runmode()
 {
     local $ENV{PATH_INFO} = '';
-    my $output;
     $output = MyApp::Dispatch->dispatch();
     like($output, qr/MyApp::Module::Name->rm2/, 'override get_runmode()');
 }
+
+# 15..17
+# lets test the TABLE
+{
+    local $ENV{PATH_INFO} = '/foo';
+    $output = CGI::Application::Dispatch->dispatch(
+        PREFIX  => 'MyApp',
+        TABLE   => {
+            'foo' => 'Module::Name',
+            'bar' => 'Module::Name',
+        },
+        RM      => 0,
+    );
+    like($output, qr/MyApp::Module::Name->rm1/, 'using TABLE');
+
+    local $ENV{PATH_INFO} = '/bar';
+    $output = CGI::Application::Dispatch->dispatch(
+        PREFIX  => 'MyApp',
+        TABLE   => {
+            'foo' => 'Module::Name',
+            'bar' => 'Module::Name',
+        },
+        RM      => 0,
+    );
+    like($output, qr/MyApp::Module::Name->rm1/, 'using TABLE');
+
+    # test with run mode
+    local $ENV{PATH_INFO} = '/bar/rm2';
+    $output = CGI::Application::Dispatch->dispatch(
+        PREFIX  => 'MyApp',
+        TABLE   => {
+            'foo' => 'Module::Name',
+            'bar' => 'Module::Name',
+        },
+    );
+    like($output, qr/MyApp::Module::Name->rm2/, 'using TABLE');
+}
+
 
 

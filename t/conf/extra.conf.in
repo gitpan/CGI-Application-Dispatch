@@ -51,5 +51,14 @@
     PerlSetVar  CGIAPP_DISPATCH_RM  On
 </Location>
 
+<Location /app9>
+    SetHandler perl-script
+    PerlHandler CGI::Application::Dispatch
+    PerlSetVar CGIAPP_DISPATCH_PREFIX MyApp
+    PerlSetVar CGIAPP_DISPATCH_TABLE foo
+    PerlAddVar CGIAPP_DISPATCH_TABLE Module::Name
+    PerlAddVar CGIAPP_DISPATCH_TABLE bar
+    PerlAddVar CGIAPP_DISPATCH_TABLE Module::Name
+</Location>
 
 
