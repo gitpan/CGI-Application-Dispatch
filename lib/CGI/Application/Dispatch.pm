@@ -1,0 +1,317 @@
+package CGI::Application::Dispatch;
+use strict;
+use warnings;
+use Carp;
+
+$CGI::Application::Dispatch::Error = '';
+$CGI::Application::Dispatch::VERSION = '0.01';
+
+=pod
+
+=head1 NAME
+
+CGI::Application::Dispatch - Class used to dispatch request to CGI::Application based objects 
+
+=head1 SYNOPSIS
+
+=head2 Under mod_perl
+
+    <Location /app>
+        SetHandler perl-script
+        PerlHandler CGI::Application::Dispatch
+    </Location>
+
+=head2 Under normal cgi
+
+    #!/usr/bin/perl
+    use strict;
+    use CGI::Application::Dispatch;
+
+    CGI::Application::Dispatch->dispatch();
+
+=head1 DESCRIPTION 
+
+This module provides a way (as a mod_perl handler or running under vanilla CGI) to look at 
+the path ($r->path_info or $ENV{PATH_INFO}) of the incoming request, parse 
+off the desired module and it's run mode, create an instance of that module and run it.
+
+It will translate a URI like this (under mod_perl):
+
+	/app/module_name/run_mode?extra_stuff...
+
+or this (vanilla cgi)
+
+	/app/index.cgi?/module_name/run_mode?extra_stuff...
+
+into something that will be functionally similar to this
+
+	my $app = Module::Name->new(..);
+	$app->mode_param(sub {'run_mode'}); #this will set the run mode
+
+=head1 MOTIVATION
+
+To be honest I got tired of writing lots of individual instance scripts, one
+for each application module, under the traditional style of CGI::Application
+programming. Then when I switched to running my CGI::Application modules as
+straight mod_perl handlers I got tired of having to change my httpd.conf file
+for every module I introduced and having my configuration file full of C<Location>
+sections. Since I had moved all of my configuration variables into config files
+and was not passing any values into the PARAMS hash upon module creation I decided
+not to write the same code over and over.
+
+I guess it comes down to me just being lazy. :)
+
+=head1 OPTIONS
+
+This section describes the different options that are available to customize
+how you dispatch your requests. All of these options can either be set using
+'PerlSetVar' (if you're running under mod_perl) or passed directly as name-value
+pairs to the L<dispatch()> method. We we have examples so don't worry too much.
+
+=head2 CGIAPP_DISPATCH_PREFIX
+
+This option will set the string that will be prepended to the name of the application
+module before it is loaded and created. So to use our previous example request of
+
+    /app/index.cgi?/module_name/run_mode?extra_stuff
+
+This would be default load and create a module named Module::Name. But let's say that you
+have all of your application specific modules under the 'My' namespace. If you set
+
+=head2 CGIAPP_DISPATCH_NO_RM
+
+This option, if true, will tell C::A::Dispatch to not set the run mode for the application,
+ 
+
+=head1 METHODS
+
+=head2 handler()
+
+This method is used so that this module can be run as a mod_perl handler. 
+When it creates the application module it passes the $r argument into the PARAMS
+hash of new()
+
+    <Location /app>
+        SetHandler perl-script
+        PerlHandler CGI::Application::Dispatch
+        PerlSetVar  CGIAPP_DISPATCH_PREFIX MyApp
+        PerlSetVar  CGIAPP_DISPATCH_RM Off 
+    </Location>
+
+The above example would tell apache that any url beginning with /app will be handled by
+CGI::Application::Dispatch. It also sets the prefix used to create the application module
+to 'MyApp' and it tells CGI::Application::Dispatch that it shouldn't set the run mode
+but that it will be determined by the application module as usual (through the query
+string).
+
+=cut
+
+sub handler {
+    my $r = shift;
+    require Apache::Constants;
+
+    #get the run_mode from the path_info
+    my $path  = $r->path_info();
+    my $dir_args = $r->dir_config();
+
+    my $module = get_module_name($path, $dir_args->{CGIAPP_DISPATCH_PREFIX});
+    $module = _require_module($module);
+
+    #if we couldn't require that mod
+    if ($CGI::Application::Dispatch::Error) {
+        #let's check to see if that module could not be found
+        my $module_path = $module;
+        $module_path =~ s/::/\//g;
+
+        if ( $CGI::Application::Dispatch::Error =~ /Can't locate $module_path.pm/ ) {
+            return Apache::Constants::NOT_FOUND();
+        }
+        #else there was some other error
+        else {
+            warn "CGI::Application::Dispatch - ERROR $CGI::Application::Dispatch::Error";
+            return Apache::Constants::SERVER_ERROR();
+        }
+    }
+
+    #create an instance of this app and run it
+    my $app = $module->new( PARAMS => { r => $r, } );
+
+    #set the run_mode if we want to
+    unless (lc($dir_args->{CGIAPP_DISPATCH_RM} eq 'off')) {
+        my $rm = get_runmode($path);
+        $app->mode_param( sub { return $rm } ) if ($rm);
+    }
+
+    $app->run();
+    return Apache::Constants::OK();
+}
+
+
+=head2 dispatch()
+
+This method is primarily used in a non mod_perl setting in an small cgi script
+to dispatch requests. You can pass this method the same name value pairs that
+you would set for the L<handler()> method using the same options mentioned
+above.
+
+    #!/usr/bin/perl
+    use strict;
+    use CGI::Application::Dispatch;
+
+    CGI::Application::Dispatch->dispatch(
+            CGIAPP_DISPATCH_PREFIX => 'MyApp',
+            CGIAPP_DISPATCH_RM => 0,
+        );
+
+This example would do the same thing that the previous example of how to use the
+L<handler()> method would do. The only difference is that it is done in a script
+and not in the apache configuration file.
+
+The benefit to using CGI::Application::Dispatch in a non mod_perl environment
+instead of the traditional instance scripts would only be seen in an application
+that has many instance scripts. It would mean your application would only need
+one script and many application modules. Since the dispatch script is so simple
+you just write it once and forget about it and turn your attention to your modules
+and templates.
+
+=cut
+
+sub dispatch {
+    my $self = shift;
+    my %args = @_;
+
+    my $module = get_module_name($ENV{PATH_INFO}, $args{CGIAPP_DISPATCH_PREFIX});
+    $module = _require_module($module);
+
+    croak $CGI::Application::Dispatch::Error
+        if($CGI::Application::Dispatch::Error);
+
+    my $app = $module->new();
+    unless(!$args{CGIAPP_DISPATCH_RM}) {
+        my $run_mode = get_runmode($ENV{PATH_INFO});
+        $app->mode_param(sub { return $run_mode });
+    }
+
+    $app->run();
+}
+
+=head2 get_module_name($path_info, $prefix)
+
+This method is used to control how the module name is generated from the PATH_INFO. Please
+see L<PATH_INFO Parsing> for more details on how this method performs it's job. The main 
+reason that this method exists is so that it is overridden if it doesn't do exactly what you
+want.
+
+You shouldn't actually call this method yourself, just override it if necessary.
+
+=cut
+
+sub get_module_name {
+    my ($path, $prefix) = @_;
+
+    my $module = (split(/\//, $path))[1];   #get the stuff between first and second '/'
+
+    #if we are trying to access a mod
+    if ($module) {
+
+        #now translate the module from 'module_name' to 'Module::Name' putting the prefix on first
+        $module = join( '::', ( map { ucfirst } ( split( /_/, $module ) ) ) );
+        $module = $prefix . "::$module" if($prefix);
+        return $module;
+    }
+    return undef;
+}
+
+
+=head2 get_runmode($path_info)
+
+This method is used to control how the run mode is generated from the PATH_INFO. Please
+see L<PATH_INFO Parsing> for more details on how this method performs it's job. The main 
+reason that this method exists is so that it is overridden if it doesn't do exactly what you
+want.
+
+You shouldn't actually call this method yourself, just override it if necessary.
+
+=cut
+sub get_runmode {
+    return (split(/\//, shift))[2];
+}
+
+
+sub _require_module {
+    my $module = shift;
+    ($module) = ($module =~ /(.*)/);    #untaint the module name
+    eval "require $module";
+
+    $CGI::Application::Dispatch::Error = $@ if $@;
+    return $module;
+}
+
+
+1;
+
+
+__END__
+
+=head1 PATH_INFO Parsing
+
+This section will describe how the application module and run mode are determined from
+the PATH_INFO and what options you have to customize the process.
+
+=head2 Getting the module name
+
+To put it simply, the PATH_INFO is split on backslahes (C</>). The second element of the
+returned list is used to create the application module. So if we have a path info of
+
+    /module_name/mode1
+
+Then the string 'module_name' is used. Underscores (C<_>) are turned into double colons
+(C<::>) and each word is passed through C<ucfirst> so that the first letter of each word
+is captialized.
+
+Then the L<CGIAPP_DISPATCH_PREFIX> is added to the beginning of this new module name with
+a double colon C<::> separating the two. 
+
+If you don't like the exact way that this is done, don't fret you do have an option. Just
+override the L<get_module_name()> method by writing your own dispatch class that inherits
+from CGI::Application::Dispatch. 
+
+=head2 Getting the run mode
+
+Just like the module name is retrieved from splitting the PATH_INFO on backslashes, so is the
+run mode. Only instead of using the second element of the resulting list, we use the third
+as the run mode. So, using the same example, if we have a path info of
+
+    /module_name/mode1
+
+Then the string 'mode1' is used as the run mode unless the CGIAPP_DISPATCH_RM is set to false.
+As with the module name this behavior can be changed by overriding the L<get_runmode()> sub.
+
+
+=head1 AUTHOR
+
+Michael Peters <michael@petersfamily.org>
+
+=head1 COMMUNITY
+
+This module is a part of the larger L<CGI::Application> community. If you have questions or
+comments about this module then please join us on the cgiapp mailing list by sending a blank
+message to "cgiapp-subscribe@lists.erlbaum.net". There is also a community wiki located at
+http://twiki.med.yale.edu/twiki2/bin/view/CGIapp/WebHome. 
+
+=head1 SEE ALSO
+
+L<CGI::Application>, L<Apache::Dispatch>
+
+=head1 TODO
+
+=over 8
+
+=item * Create a more complete test suite.
+
+=item * add easier alias for options for L<dispatch()>
+
+=back
+
+=cut
+
