@@ -4,7 +4,7 @@ use warnings;
 use Carp;
 
 $CGI::Application::Dispatch::Error = '';
-$CGI::Application::Dispatch::VERSION = '1.00';
+$CGI::Application::Dispatch::VERSION = '1.01';
 
 =pod
 
@@ -378,6 +378,8 @@ L<http://www.cgi-app.org/>
 =item * Drew Taylor <drew@drewtaylor.com>
 
 =item * James Freeman <james.freeman@smartsurf.org>
+
+=item * Michael Graham <magog@the-wire.com>
 
 =back
 

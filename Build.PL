@@ -6,11 +6,13 @@ my $build = $build_pkg->new (
         module_name         => 'CGI::Application::Dispatch',
         license             => 'perl',
         requires            => {
-                    'perl'              => '5.8.0',
+                    'perl'              => '5.6.0',
                     'CGI::Application'  => '3.2',
                     'Test::More'        => 0,
-                                },
-        build_requires      => { },
+                    },
+        build_requires      => {
+                    'Apache::Test'  => '1.16',
+                    },
         module_name         => 'CGI::Application::Dispatch',
         create_makefile_pl  => 'passthrough',
    );
