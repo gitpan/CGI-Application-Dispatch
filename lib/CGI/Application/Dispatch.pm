@@ -4,7 +4,7 @@ use warnings;
 use Carp;
 
 $CGI::Application::Dispatch::Error = '';
-$CGI::Application::Dispatch::VERSION = '1.02';
+$CGI::Application::Dispatch::VERSION = '1.03';
 my $MP2;
 
 BEGIN {
@@ -399,7 +399,7 @@ sub get_module_name {
         $module = "${prefix}::${module}" if($prefix);
         return ($module, $partial_path);
     }
-    return undef;
+    return;
 }
 
 
@@ -440,16 +440,20 @@ variable will be set.
 
 sub require_module {
     my ($self, $module) = @_;
-    #untaint the module name
-    ($module) = ($module =~ /^([A-Za-z][A-Za-z0-9_\-\:\']+)$/);   
-    unless ($module) {
-      $CGI::Application::Dispatch::Error = "Invalid characters used in module name";
-      return;
+    if( $module ) {
+        #untaint the module name
+        ($module) = ($module =~ /^([A-Za-z][A-Za-z0-9_\-\:\']+)$/);   
+        unless ($module) {
+        $CGI::Application::Dispatch::Error = "Invalid characters used in module name";
+        return;
+        }
+        eval "require $module";
+    
+        $CGI::Application::Dispatch::Error = $@ if $@;
+        return $module;
+    } else {
+        return;
     }
-    eval "require $module";
-
-    $CGI::Application::Dispatch::Error = $@ if $@;
-    return $module;
 }
 
 
@@ -514,7 +518,7 @@ module (unless your CGIAPP_DISPATCH_RM is false).
 
 Michael Peters <mpeters@plusthree.com>
 
-Thanks to Plus Three, LLC (http://www.plusthree.com) for sponsoring my work on this module
+Thanks to Plus Three, LP (http://www.plusthree.com) for sponsoring my work on this module
 
 =head1 COMMUNITY
 

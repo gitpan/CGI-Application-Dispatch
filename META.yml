@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name: CGI-Application-Dispatch
-version: 1.02
+version: 1.03
 author:
   - Michael Peters <mpeters@plusthree.com>
 abstract: Class used to dispatch request to CGI::Application based objects
