@@ -1,8 +1,6 @@
-For 0.02
+For 0.04
 
-* find and fix document mistakes
-* add aliases to options for dispatch()
-* add a test module to tests so that run mode tests can be done
-* mention security concern with not using DISPATCH since arbitrary modules can be created and run
+    - add Apache::Test tests
+
 
 

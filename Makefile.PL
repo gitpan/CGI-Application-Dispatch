@@ -6,7 +6,8 @@ WriteMakefile
           'VERSION_FROM' => 'lib/CGI/Application/Dispatch.pm',
           'PREREQ_PM' => {
                            'Apache::FakeRequest' => '0',
-                           'CGI::Application' => '3.2'
+                           'CGI::Application' => '3.2',
+                           'Test::More' => '0'
                          },
           'INSTALLDIRS' => 'site',
           'PL_FILES' => {}

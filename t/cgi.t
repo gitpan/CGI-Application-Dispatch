@@ -1,6 +1,6 @@
 use Test::More qw(no_plan);
 use strict;
-use lib './t';
+use lib './t/lib';
 
 # 1..2
 require_ok('CGI::Application::Dispatch');

@@ -6,4 +6,5 @@ MANIFEST
 META.yml
 t/cgi.t
 t/handler.t
+t/lib/Cgiappdispatchtestmodule.pm
 TODO

@@ -4,7 +4,7 @@ use warnings;
 use Carp;
 
 $CGI::Application::Dispatch::Error = '';
-$CGI::Application::Dispatch::VERSION = '0.02';
+$CGI::Application::Dispatch::VERSION = '0.03';
 
 =pod
 
@@ -228,7 +228,7 @@ sub get_module_name {
 
         #now translate the module from 'module_name' to 'Module::Name' putting the prefix on first
         $module = join( '::', ( map { ucfirst } ( split( /_/, $module ) ) ) );
-        $module = $prefix . "::$module" if($prefix);
+        $module = "${prefix}::${module}" if($prefix);
         return $module;
     }
     return undef;
@@ -322,7 +322,9 @@ the API will change (and may even become unrecognizable) so please remeber to ke
 
 =head1 AUTHOR
 
-Michael Peters <michael@petersfamily.org>
+Michael Peters <mpeters@plusthree.com>
+
+Thanks to Plus Three, LLC (http://www.plusthree.com) for sponsoring my work on this module
 
 =head1 COMMUNITY
 

@@ -1,6 +1,6 @@
 use Test::More qw(no_plan);
 use strict;
-use lib './t';
+use lib './t/lib';
 
 #try to require Apache
 eval { require Apache; };
