@@ -1,5 +1,17 @@
 Revision history for Perl extension CGI::Application::Dispatch.
 
+1.0
+    - fixed bug which prevented overriding of certain methods
+    - upped required perl version to 5.8.0 because of method attributes
+    
+0.04
+    - added CGIAPP_DISPATCH_DEFAULT option to specify default PATH_INFO value
+    - added CGIAPP_DISPATCH_PATH which gets passed to new()'s PARAMS for use
+        by the application module
+    - any parameters passed into dispatch() are then passed into the 
+        application's new()
+    - added Apache::Test tests to the test suite
+
 0.03 (Oct. 29, 2004)
     - missing files from MANIFEST
     - minor optimizations

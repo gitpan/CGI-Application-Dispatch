@@ -1,18 +1,18 @@
 use Module::Build;
+my $build_pkg = eval { require Apache::TestMB }
+      ? 'Apache::TestMB' : 'Module::Build';
 
-my $build = Module::Build->new (
+my $build = $build_pkg->new (
         module_name         => 'CGI::Application::Dispatch',
         license             => 'perl',
         requires            => {
-                    'perl'              => '5.6.1',
+                    'perl'              => '5.8.0',
                     'CGI::Application'  => '3.2',
                     'Test::More'        => 0,
                                 },
-        build_requires      => {
-                    'Apache::FakeRequest' => 0,
-                                },
+        build_requires      => { },
         module_name         => 'CGI::Application::Dispatch',
-        create_makefile_pl  => 'traditional',
+        create_makefile_pl  => 'passthrough',
    );
 
 $build->create_build_script;

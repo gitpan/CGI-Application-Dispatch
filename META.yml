@@ -1,19 +1,8 @@
 --- #YAML:1.0
 name: CGI-Application-Dispatch
-version: 0.03
+version: 1.00
 author:
   - Michael Peters <mpeters@plusthree.com>
-abstract: |-
-  Class used to dispatch request to CGI::Application based objects
+abstract: Class used to dispatch request to CGI::Application based objects
 license: perl
-requires:
-  CGI::Application: 3.2
-  Test::More: 0
-  perl: 5.6.1
-build_requires:
-  Apache::FakeRequest: 0
-provides:
-  CGI::Application::Dispatch:
-    file: lib/CGI/Application/Dispatch.pm
-    version: 0.03
-generated_by: Module::Build version 0.26
+generated_by: Module::Build version 0.2604, without YAML.pm
