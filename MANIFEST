@@ -1,6 +1,9 @@
 Build.PL
+Changes
 lib/CGI/Application/Dispatch.pm
-MANIFEST			This list of files
+Makefile.PL
+MANIFEST
 META.yml
 t/cgi.t
 t/handler.t
+TODO

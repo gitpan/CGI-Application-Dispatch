@@ -1,0 +1,11 @@
+Revision history for Perl extension CGI::Application::Dispatch.
+
+0.02 (Oct. 19, 2004)
+
+    - find and fix document mistakes
+    - add aliases to options (PREFIX and RM) for dispatch()
+    - improved test
+    - mention security concern with not using PREFIX 
+
+0.01 (Sep. 12, 2004)
+    - First version
