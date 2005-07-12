@@ -3,18 +3,17 @@ use strict;
 use warnings;
 use Carp;
 
-$CGI::Application::Dispatch::Error = '';
-$CGI::Application::Dispatch::VERSION = '1.03';
+our $Error = '';
+our $VERSION = '1.04';
 my $MP2;
 
 BEGIN {
     if( $ENV{MOD_PERL} ) {
-        require mod_perl;
-        $MP2 = $mod_perl::VERSION >= 1.99 ? 1 : 0;
+        $MP2 = $ENV{MOD_PERL_API_VERSION} == 2;
         if( $MP2 ) {
-            require Apache::Const;
-            require Apache::RequestUtil;
-            require Apache::RequestRec;
+            require Apache2::Const;
+            require Apache2::RequestUtil;
+            require Apache2::RequestRec;
             require APR::Table;
         } else {
             require Apache::Constants;
@@ -239,12 +238,12 @@ sub handler : method {
         $module_path =~ s/::/\//g;
 
         if ( $CGI::Application::Dispatch::Error =~ /Can't locate $module_path.pm/ ) {
-            return $MP2 ? Apache::NOT_FOUND() : Apache::Constants::NOT_FOUND();
+            return $MP2 ? Apache2::Const::NOT_FOUND() : Apache::Constants::NOT_FOUND();
         }
         #else there was some other error
         else {
             warn "CGI::Application::Dispatch - ERROR $CGI::Application::Dispatch::Error";
-            return $MP2 ? Apache::SERVER_ERROR() : Apache::Constants::SERVER_ERROR();
+            return $MP2 ? Apache2::Const::SERVER_ERROR() : Apache::Constants::SERVER_ERROR();
         }
     }
 
@@ -263,7 +262,7 @@ sub handler : method {
     }
 
     $app->run();
-    return $MP2 ? Apache::OK() : Apache::Constants::OK();
+    return $MP2 ? Apache2::Const::OK() : Apache::Constants::OK();
 }
 
 
