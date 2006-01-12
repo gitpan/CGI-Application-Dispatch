@@ -1,7 +1,7 @@
 package MyApp::Dispatch;
 use base 'CGI::Application::Dispatch';
 
-sub get_module_name {
+sub translate_module_name {
     my $self = shift;
     return 'MyApp::Module::Name'; 
 }

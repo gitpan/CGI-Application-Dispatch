@@ -1,5 +1,12 @@
 Revision history for Perl extension CGI::Application::Dispatch.
 
+2.00_02
+    - Added optional-variable tokens to dispatch tables
+    - added more docs and examples for dispatch tables
+
+2.00_01
+    - Initial rewrite of new API and new dispatch table
+
 1.04 (Jun. 27, 2005)
     - Small changes to correspond to official mod_perl 2.0 release
         and API change (see http://perl.apache.org/docs/2.0/rename.html)

@@ -1,176 +1,96 @@
-use Test::More (tests => 21);
+use Test::More;
+use Test::LongString;
 use strict;
+use warnings;
+plan(tests => 23);
 
-# 1..4
+# 1..5
 # make sure we can get to our modules
 require_ok('CGI::Application::Dispatch');
 require_ok('Module::Name');
 require_ok('MyApp::Module::Name');
 require_ok('MyApp::Dispatch');
+require_ok('MyApp::DispatchTable');
 local $ENV{CGI_APP_RETURN_ONLY} = '1';
 my $output = '';
 
-# 5..6
-# make sure the module name gets created correctly
+# 6..7
+# module name
 {
     # with starting '/'
     local $ENV{PATH_INFO} = '/module_name/rm1';
     $output = CGI::Application::Dispatch->dispatch();
-    like($output, qr/Module::Name->rm1/, 'dispatch(): module_name');
+    contains_string($output, 'Module::Name->rm1', 'dispatch(): module_name');
 
     # without starting '/'
     local $ENV{PATH_INFO} = 'module_name/rm1';
     $output = CGI::Application::Dispatch->dispatch();
-    like($output, qr/Module::Name->rm1/, 'dispatch(): module_name');
-}
-
-# 7
-# make sure that the prefix gets added on correctly
-{
-    local $ENV{PATH_INFO} = '/module_name/rm1';
-    $output = CGI::Application::Dispatch->dispatch(
-        PREFIX => 'MyApp',
-    );
-    like($output, qr/MyApp::Module::Name->rm1/, 'dispatch(): prefix');
+    contains_string($output, 'Module::Name->rm1', 'dispatch(): module_name');
 }
 
 # 8
-# make sure it grabs the RM correctly from the PATH_INFO if RM is true
+# prefix
+{
+    local $ENV{PATH_INFO} = '/module_name/rm1';
+    $output = CGI::Application::Dispatch->dispatch(
+        prefix => 'MyApp',
+    );
+    contains_string($output, 'MyApp::Module::Name->rm1', 'dispatch(): prefix');
+}
+
+# 9
+# grabs the RM from the PATH_INFO
 {
     # with run mode
     local $ENV{PATH_INFO} = '/module_name/rm2';
     $output = CGI::Application::Dispatch->dispatch(
-        PREFIX => 'MyApp',
-        RM => 1,
+        prefix => 'MyApp',
     );
-    like($output, qr/MyApp::Module::Name->rm2/, 'RM true');
-}
-
-# 9
-# make sure it grabs the RM correctly from the PATH_INFO if RM is undefined
-{
-    local $ENV{PATH_INFO} = '/module_name/rm2';
-    $output = CGI::Application::Dispatch->dispatch(
-        PREFIX => 'MyApp',
-    );
-    like($output, qr/MyApp::Module::Name->rm2/, 'RM true');
+    contains_string($output, 'MyApp::Module::Name->rm2', 'RM correct');
 }
 
 # 10
-# make sure it doesn't grab the run mode when RM is false
-{
-    local $ENV{PATH_INFO} = '/module_name/rm2';
-    $output = CGI::Application::Dispatch->dispatch(
-        PREFIX => 'MyApp',
-        RM => 0,
-    );
-    like($output, qr/MyApp::Module::Name->rm1/, 'RM false');
-}
-
-# 11 
-# make sure extra things passed to dispatch() get passed into new()
+# extra things passed to dispatch() get passed into new()
 {
     local $ENV{PATH_INFO} = '/module_name/rm3';
     $output = CGI::Application::Dispatch->dispatch(
-        PREFIX  => 'MyApp',
-        RM      => 1,
+        prefix  => 'MyApp',
         PARAMS  => {
             my_param => 'testing',
         },
     );
-    like($output, qr/MyApp::Module::Name->rm3 my_param=testing/, 'PARAMS passed through');
+    contains_string($output, 'MyApp::Module::Name->rm3 my_param=testing', 'PARAMS passed through');
 }
 
-# 12 
-# make sure that we have a correct CGIAPP_DISPATCH_PATH
-{
-    local $ENV{PATH_INFO} = '/module_name/rm4';
-    $output = CGI::Application::Dispatch->dispatch(
-        PREFIX  => 'MyApp',
-        RM      => 1,
-    );
-    like($output, qr#MyApp::Module::Name->rm4 path=module_name#, 'CGIAPP_DISPATCH_PATH set correctly');
-}
-
-# 13..14
-# let's test that the DEFAULT is used
+# 11..12
+# use default 
 {
     # using short cuts names
     local $ENV{PATH_INFO} = '';
     $output = CGI::Application::Dispatch->dispatch(
-        PREFIX  => 'MyApp',
-        RM      => 1,
-        DEFAULT => '/module_name/rm2',
+        prefix  => 'MyApp',
+        default => '/module_name/rm2',
     );
-    like($output, qr/MyApp::Module::Name->rm2/, 'DEFAULT');
+    contains_string($output, 'MyApp::Module::Name->rm2', 'default');
 
-    # using long names with trailing '/'
+    # with trailing '/'
     local $ENV{PATH_INFO} = '/';
     $output = CGI::Application::Dispatch->dispatch(
-        CGIAPP_DISPATCH_PREFIX  => 'MyApp',
-        CGIAPP_DISPATCH_RM      => 1,
-        CGIAPP_DISPATCH_DEFAULT => '/module_name/rm2',
+        prefix  => 'MyApp',
+        default => '/module_name/rm2',
     );
-    like($output, qr/MyApp::Module::Name->rm2/, 'DEFAULT');
+    contains_string($output, 'MyApp::Module::Name->rm2', 'default');
 }
 
-# 15
-# make sure we can override get_module_name()
+# 13
+# override translate_module_name()
 {
-    local $ENV{PATH_INFO} = '';
-    $output = MyApp::Dispatch->dispatch(
-        RM      => 0,
-    );
-    like($output, qr/MyApp::Module::Name->rm1/, 'override get_module_name()');
-}
-
-# 16
-# make sure we can override get_runmode()
-{
-    local $ENV{PATH_INFO} = '';
+    local $ENV{PATH_INFO} = '/something_strange';
     $output = MyApp::Dispatch->dispatch();
-    like($output, qr/MyApp::Module::Name->rm2/, 'override get_runmode()');
+    contains_string($output, 'MyApp::Module::Name->rm1', 'override translate_module_name()');
 }
 
-# 17..19
-# lets test the TABLE
-{
-    local $ENV{PATH_INFO} = '/foo';
-    $output = CGI::Application::Dispatch->dispatch(
-        PREFIX  => 'MyApp',
-        TABLE   => {
-            'foo' => 'Module::Name',
-            'bar' => 'Module::Name',
-        },
-        RM      => 0,
-    );
-    like($output, qr/MyApp::Module::Name->rm1/, 'using TABLE');
-
-    # with long names
-    local $ENV{PATH_INFO} = '/bar';
-    $output = CGI::Application::Dispatch->dispatch(
-        CGIAPP_DISPATCH_PREFIX  => 'MyApp',
-        CGIAPP_DISPATCH_TABLE   => {
-            'foo' => 'Module::Name',
-            'bar' => 'Module::Name',
-        },
-        CGIAPP_DISPATCH_RM      => 0,
-    );
-    like($output, qr/MyApp::Module::Name->rm1/, 'using TABLE');
-
-    # test with run mode
-    local $ENV{PATH_INFO} = '/bar/rm2';
-    $output = CGI::Application::Dispatch->dispatch(
-        PREFIX  => 'MyApp',
-        TABLE   => {
-            'foo' => 'Module::Name',
-            'bar' => 'Module::Name',
-        },
-    );
-    like($output, qr/MyApp::Module::Name->rm2/, 'using TABLE');
-}
-
-# 20..21
+# 14..15
 # cause errors
 {
     # non-existant module
@@ -184,5 +104,48 @@ my $output = '';
     ok($@, 'no module name');
 }
 
+# 16
+# args_to_new
+{
+    local $ENV{PATH_INFO} = '/module_name/rm3';
+    $output = CGI::Application::Dispatch->dispatch(
+        prefix      => 'MyApp',
+        args_to_new => {
+            PARAMS => { my_param => 'more testing' },
+        },
+    );
+    contains_string($output, 'MyApp::Module::Name->rm3 my_param=more testing', 'PARAMS passed through');
+}
 
+# 17..23
+# use a full dispatch table in a subclass
+{
+    local $ENV{PATH_INFO} = '/module_name';
+    $output = MyApp::DispatchTable->dispatch();
+    contains_string($output, 'MyApp::Module::Name->rm1', 'matched :app');
+
+    local $ENV{PATH_INFO} = '/module_name/rm2';
+    $output = MyApp::DispatchTable->dispatch();
+    contains_string($output, 'MyApp::Module::Name->rm2', 'matched :app/:rm');
+
+    local $ENV{PATH_INFO} = '/module_name/rm3/stuff';
+    $output = MyApp::DispatchTable->dispatch();
+    contains_string($output, 'MyApp::Module::Name->rm3 my_param=stuff', 'matched :app/:rm/:my_param');
+    
+    local $ENV{PATH_INFO} = '/module_name/bar/stuff';
+    $output = MyApp::DispatchTable->dispatch();
+    contains_string($output, 'MyApp::Module::Name->rm3 my_param=stuff', 'matched :app/bar/:my_param');
+
+    local $ENV{PATH_INFO} = '/foo/bar';
+    $output = MyApp::DispatchTable->dispatch();
+    contains_string($output, 'MyApp::Module::Name->rm2', 'matched foo/bar');
+
+    local $ENV{PATH_INFO} = '/module_name/foo';
+    $output = MyApp::DispatchTable->dispatch();
+    contains_string($output, 'MyApp::Module::Name->rm3 my_param=', 'missing optional');
+
+    local $ENV{PATH_INFO} = '/module_name/foo/weird';
+    $output = MyApp::DispatchTable->dispatch();
+    contains_string($output, 'MyApp::Module::Name->rm3 my_param=weird', 'present optional');
+}
 

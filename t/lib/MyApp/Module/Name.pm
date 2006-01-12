@@ -8,7 +8,6 @@ sub setup {
         rm1 => 'rm1',
         rm2 => 'rm2',
         rm3 => 'rm3',
-        rm4 => 'rm4',
     ); 
 }
 
@@ -24,14 +23,9 @@ sub rm2 {
 
 sub rm3 {
     my $self = shift;
-    my $param = $self->param('my_param');
+    my $param = $self->param('my_param') || '';
     return "MyApp::Module::Name->rm3 my_param=$param";
 }
 
-sub rm4 {
-    my $self = shift;
-    my $path = $self->param('CGIAPP_DISPATCH_PATH');
-    return "MyApp::Module::Name->rm4 path=$path";
-}
 
 1;

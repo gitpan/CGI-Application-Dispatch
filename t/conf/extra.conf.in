@@ -13,52 +13,16 @@
     SetHandler  perl-script
     PerlHandler CGI::Application::Dispatch
     PerlSetVar  CGIAPP_DISPATCH_PREFIX  MyApp
-    PerlSetVar  CGIAPP_DISPATCH_RM  On
+    PerlSetVar  CGIAPP_DISPATCH_DEFAULT /module_name/rm2
 </Location>
 
 <Location /app4>
     SetHandler  perl-script
-    PerlHandler CGI::Application::Dispatch
-    PerlSetVar  CGIAPP_DISPATCH_PREFIX  MyApp
-    PerlSetVar  CGIAPP_DISPATCH_RM  Off
+    PerlHandler MyApp::Dispatch
 </Location>
 
 <Location /app5>
     SetHandler  perl-script
-    PerlHandler CGI::Application::Dispatch
-    PerlSetVar  CGIAPP_DISPATCH_PREFIX  MyApp
-    PerlSetVar  CGIAPP_DISPATCH_RM  On
-    PerlSetVar  CGIAPP_DISPATCH_DEFAULT /module_name/rm2
+    PerlHandler MyApp::DispatchTable
 </Location>
-
-<Location /app6>
-    SetHandler  perl-script
-    PerlHandler CGI::Application::Dispatch
-    PerlSetVar  CGIAPP_DISPATCH_PREFIX  MyApp
-    PerlSetVar  CGIAPP_DISPATCH_RM  Off
-    PerlSetVar  CGIAPP_DISPATCH_DEFAULT /module_name/rm2
-</Location>
-
-<Location /app7>
-    SetHandler  perl-script
-    PerlHandler MyApp::Dispatch
-    PerlSetVar  CGIAPP_DISPATCH_RM  Off
-</Location>
-
-<Location /app8>
-    SetHandler  perl-script
-    PerlHandler MyApp::Dispatch
-    PerlSetVar  CGIAPP_DISPATCH_RM  On
-</Location>
-
-<Location /app9>
-    SetHandler perl-script
-    PerlHandler CGI::Application::Dispatch
-    PerlSetVar CGIAPP_DISPATCH_PREFIX MyApp
-    PerlSetVar CGIAPP_DISPATCH_TABLE foo
-    PerlAddVar CGIAPP_DISPATCH_TABLE Module::Name
-    PerlAddVar CGIAPP_DISPATCH_TABLE bar
-    PerlAddVar CGIAPP_DISPATCH_TABLE Module::Name
-</Location>
-
 

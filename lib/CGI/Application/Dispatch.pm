@@ -3,13 +3,15 @@ use strict;
 use warnings;
 use Carp;
 
-our $Error = '';
-our $VERSION = '1.04';
-my $MP2;
+our $VERSION = '2.00_02';
+my ($MP, $MP2);
+our $DEBUG = 0;
+my $MODULE_NAME;
 
 BEGIN {
     if( $ENV{MOD_PERL} ) {
-        $MP2 = $ENV{MOD_PERL_API_VERSION} == 2;
+        $MP = 1;
+        $MP2 = exists $ENV{MOD_PERL_API_VERSION} ? $ENV{MOD_PERL_API_VERSION} == 2 : 0;
         if( $MP2 ) {
             require Apache2::Const;
             require Apache2::RequestUtil;
@@ -25,38 +27,65 @@ BEGIN {
 
 =head1 NAME
 
-CGI::Application::Dispatch - Class used to dispatch request to CGI::Application based objects 
+CGI::Application::Dispatch - Dispatch requests to CGI::Application based objects 
 
 =head1 SYNOPSIS
 
-=head2 Under mod_perl
+=head2 Out of Box
+
+Under mod_perl
 
     <Location /app>
         SetHandler perl-script
         PerlHandler CGI::Application::Dispatch
     </Location>
 
-=head2 Under normal cgi
+Under normal cgi
 
     #!/usr/bin/perl
     use strict;
     use CGI::Application::Dispatch;
-
     CGI::Application::Dispatch->dispatch();
+
+=head2 With a dispatch table
+
+    package MyApp::Dispatch;
+    use base 'CGI::Application::Dispatch';
+    
+    sub args_to_dispatch {
+        return {
+            prefix  => 'MyApp',
+            table   => [
+                ''                => { app => 'Welcome', rm => 'start' },
+                :app/:rm'         => { },
+                'admin/:app/:rm'  => { prefix   => 'MyApp::Admin' },
+            ],
+        };
+    }
+
+Under mod_perl
+
+    <Location /app>
+        SetHandler perl-script
+        PerlHandler MyApp::Dispatch
+    </Location>
+
+Under normal cgi
+
+    #!/usr/bin/perl
+    use strict;
+    use MyApp::Dispatch;
+    MyApp::Dispatch->dispatch();
 
 =head1 DESCRIPTION 
 
 This module provides a way (as a mod_perl handler or running under vanilla CGI) to look at 
-the path (C<< $r->path_info >> or C<< $ENV{PATH_INFO} >>) of the incoming request, parse 
+the path (C<< $r->path_info >> or C<$ENV{PATH_INFO}>) of the incoming request, parse 
 off the desired module and it's run mode, create an instance of that module and run it.
 
 It currently supports both generations of mod_perl (1.x and 2.x). Although, for simplicity,
-all examples involving apache configuration and mod_perl code will be shown using mod_perl 1.x.
+all examples involving Apache configuration and mod_perl code will be shown using mod_perl 1.x.
 This may change as mp2 usage increases.
-
-In addition, the portion of the C<PATH_INFO> that is used to derive the module name is
-also passed to the C<PARAMS> of the modules C<<new()>> as CGIAPP_DISPATCH_PATH. This can 
-be useful if you are programatically generating URLs.
 
 It will translate a URI like this (under mod_perl):
 
@@ -71,36 +100,32 @@ into something that will be functionally similar to this
 	my $app = Module::Name->new(..);
 	$app->mode_param(sub {'run_mode'}); #this will set the run mode
 
-And in both cases the CGIAPP_DISPATCH_PATH value will be 'module_name' so that
-you can generate a self referential URL by doing something like the following
-inside of your application module:
+=head1 METHODS
 
-    my $url = 'http://mysite.com/app/' . $self->param('CGIAPP_DISPATCH_PATH');
+=head2 dispatch()
 
-=head1 MOTIVATION
+This is the primary method used during dispatch. Even under mod_perl, the L<handler>
+method uses this under the hood.
 
-To be honest I got tired of writing lots of individual instance scripts, one
-for each application module, under the traditional style of CGI::Application
-programming. Then when I switched to running my CGI::Application modules as
-straight mod_perl handlers I got tired of having to change my httpd.conf file
-for every module I introduced and having my configuration file full of C<Location>
-sections. Since I had moved all of my configuration variables into config files
-and was not passing any values into the PARAMS hash upon module creation I decided
-not to write the same code over and over.
+    #!/usr/bin/perl
+    use strict;
+    use CGI::Application::Dispatch;
 
-I guess it comes down to me just being lazy. :)
+    CGI::Application::Dispatch->dispatch(
+        prefix  => 'MyApp',
+        default => 'module_name',
+    );
 
-=head1 OPTIONS
+This method accepts the following name value pairs:
 
-This section describes the different options that are available to customize
-how you dispatch your requests. All of these options can either be set using
-'PerlSetVar' (if you're running under mod_perl) or passed directly as name-value
-pairs to the L<"dispatch()"> method. When passing them directly as name-value
-pairs to the L<"dispatch()"> method you may omit the 'CGIAPP_DISPATCH_' prefix
-on the name of each option. So, C<CGIAPP_DISPATCH_PREFIX> can become simply C<PREFIX>.
-You can't however use both. We have examples so don't worry too much.
+=over
 
-=head2 CGIAPP_DISPATCH_PREFIX
+=item default
+
+This option will set a default value if there is no C<PATH_INFO>. It will be parsed
+to obtain the module name and run mode.
+
+=item prefix
 
 This option will set the string that will be prepended to the name of the application
 module before it is loaded and created. So to use our previous example request of
@@ -111,75 +136,121 @@ This would by default load and create a module named 'Module::Name'. But let's s
 have all of your application specific modules under the 'My' namespace. If you set this option
 to 'My' then it would instead load the 'My::Module::Name' application module instead.
 
-=head2 CGIAPP_DISPATCH_RM
+=item args_to_new
 
-This option, if false, will tell C::A::Dispatch to not set the run mode for the application.
-By default it is true.
+This is a hash of arguments that are passed into the C<new()> constructor of the application.
 
-=head2 CGIAPP_DISPATCH_DEFAULT
+=item table
 
-This option will set a default value if there is no C<< $ENV{PATH_INFO} >>. It will be parsed
-to obtain the module name and run mode (if you don't have C<< CGIAPP_DISPATCH_RM >> set to 
-false.
-
-=head2 CGIAPP_DISPATCH_TABLE
-
-This option will tell CGI::Application::Dispatch to use either a provided hash or subroutine
-to translate the C<< $ENV{PATH_INFO} >> into the module name. The retrieved value will also
-be combined with the L<CGIAPP_DISPATCH_PREFIX> value if it exists.
-
-=over 8
-
-=item * TABLE with mod_perl
-
-If you are using this under mod_perl and enjoy using PerlAddVar directives, then your httpd.conf
-might look something like this (under mod_perl 1)
-
-
-  <Location /app>
-    SetHandler perl-script
-    PerlHandler CGI::Application::Dispatch
-    PerlSetVar CGIAPP_DISPATCH_PREFIX MyApp
-    PerlSetVar CGIAPP_DISPATCH_RM Off
-
-    PerlSetVar CGIAPP_DISPATCH_TABLE foo
-    PerlAddVar CGIAPP_DISPATCH_TABLE Some::Name
-    PerlAddVar CGIAPP_DISPATCH_TABLE bar
-    PerlAddVar CGIAPP_DISPATCH_TABLE Some::OtherName
-    PerlAddVar CGIAPP_DISPATCH_TABLE baz
-    PerlAddVar CGIAPP_DISPATCH_TABLE Yet::AnotherName
-  </Location>
-
-And then Dispatch will turn the all those PerlSetVar and PerlAddVars into a hash.
-
-=item * TABLE with vanilla CGI
-
-Or if you are using Dispatch under vanilla cgi then an equivalent .cgi script would be:
-
-  #!/usr/bin/perl
-  use strict;
-  use CGI::Application::Dispatch;
-
-  CGI::Application::Dispatch->dispatch(
-    PREFIX  => 'MyApp',
-    RM      => 0,
-    TABLE   => {
-        'foo'     => 'Some::Name',
-        'bar'     => 'Some::OtherName',
-        'baz'     => 'Yet::AnotherName',
-    },
-  );
+In most cases, simply using Dispatch with the C<default> and C<prefix> is enough 
+to simplify your application and your URLs, but there are many cases where you want 
+more power. Enter the dispatch table. Since this table can be slightly complicated,
+a whole section exists on it's use. Please see the L<DISPATCH TABLE> section.
 
 =back
 
-In all these cases a url or '/foo/rm2' will be translated into the module 
-'MyApp::Some::Name' and run mode 'rm2'. This will allow more flexibility
-in PATH_INFO to module name translation and also provide more security for
-those who want to restrict what options are available for translation. If
-the PATH_INFO contains a value that is not a key in your table hash, then
-Dispatch will t
+=cut
 
-=head1 METHODS
+sub dispatch {
+    my ($self, %args) = @_;
+    %args = ( %{ $self->dispatch_args }, %args);
+
+    # check for extra args (for backwards compatability)
+    foreach (keys %args) {
+        next if( 
+            $_ eq 'prefix' || 
+            $_ eq 'default' || 
+            $_ eq 'rm' || 
+            $_ eq 'args_to_new' || 
+            $_ eq 'table' 
+        );
+        warn "Passing extra args ('$_') to dispatch() is deprecated! Please use 'args_to_new'";
+        $args{args_to_new}->{$_} = delete $args{$_};
+    }
+    %args = map { lc $_ => $args{$_} } keys %args;  # lc for backwards compatability
+
+    # get the PATH_INFO
+    my $path_info = $ENV{PATH_INFO};
+    # use the 'default' if we need to
+    $path_info = $args{default} || '' if( !$path_info || $path_info eq '/' );
+    # make sure they all start with a '/'
+    $path_info = "/$path_info" unless( index($path_info, '/') == 0 );
+    $path_info = "$path_info/" unless( index($path_info, '/') == length($path_info) -1);
+
+    # get the module name from the table
+    my $table = $args{table} or croak "Must at least have a default 'table'!";
+    my $table_index;
+    my ($module, $rm);
+    for(my $i = 0; $i < scalar (@$table); $i+=2) {
+        # translate the rule into a regular expression, but remember where the named args are
+        my $rule = $table->[$i];
+        # make sure they start and end with a '/'
+        $rule = "/$rule" unless( index($rule, '/') == 0 );  
+        $rule = "$rule/" unless( index($rule, '/') == length($rule) -1); 
+        my ($regex, @names);
+        # '/:foo' will become '/([^\/]*)' 
+        # and
+        # '/:bar?' will become '/?([^\/]*)?'
+        # and then remember which position it matches
+        { 
+            # remove warning about $4 being used in the result when it doesn't always match
+            no warnings; 
+            while( $rule =~ s/(^|\/)(:([^\/\?]+)(\?)?)/$1$4([^\/]*)$4/ ) {
+                push(@names, $3); # it's the 3rd grouping from the match above
+            }
+        }
+        # make sure we only match this rule
+        $rule = '^' . $rule . '$';
+
+        if( $DEBUG ) {
+            warn "[Dispatch] Trying to match '$path_info' against rule '$table->[$i]' "
+                . "using regex '$rule'\n";
+        }
+
+        # if we found a match, then run with it
+        if( $path_info =~ /^$rule/ ) {
+            warn "[Dispatch] Matched!\n" if( $DEBUG );
+
+            my $named_args = $table->[$i+1];
+            # add the extra named_args from the match
+            for(my $j = 0; $j<=$#names; $j++) {
+                no strict 'refs';
+                $named_args->{$names[$j]} = ${$j +1};
+            }
+
+            if( $DEBUG ) {
+                require Data::Dumper;
+                warn "[Dispatch] Named args from match: " . Data::Dumper::Dumper($named_args) . "\n";
+            }
+            my $module_name = $named_args->{app} || croak "No 'app' contained in the match!";
+            $module = $self->translate_module_name($module_name);
+            # now add the prefix
+            my $local_prefix = $named_args->{prefix} || $args{prefix};
+            $module = $local_prefix . '::' . $module if( $local_prefix );
+
+            # add the rest of the named_args to PARAMS
+            foreach my $named (keys %$named_args) {
+                next if( $named eq 'rm' || $named eq 'app' );
+                $args{args_to_new}->{PARAMS}->{$named} = $named_args->{$named};
+            }
+            # remember the rm if we have one
+            $rm = $named_args->{rm};
+        }
+    };
+        
+    # now create and run then application object
+    $MODULE_NAME = $module;
+    warn "[Dispatch] creating instance of $module\n" if( $DEBUG );
+    $self->require_module($module);
+    my $app;
+    if( defined $args{args_to_new} && %{$args{args_to_new}} ) {
+        $app = $module->new($args{args_to_new});
+    } else {
+        $app = $module->new();
+    }
+    $app->mode_param(sub { return $rm }) if( $rm );
+    $app->run();
+}
 
 =head2 handler()
 
@@ -190,8 +261,7 @@ hash of new()
     <Location /app>
         SetHandler perl-script
         PerlHandler CGI::Application::Dispatch
-        PerlSetVar  CGIAPP_DISPATCH_PREFIX  MyApp
-        PerlSetVar  CGIAPP_DISPATCH_RM      Off 
+        LerlSetVar  CGIAPP_DISPATCH_PREFIX  MyApp
         PerlSetVar  CGIAPP_DISPATCH_DEFAULT /module_name
     </Location>
 
@@ -200,223 +270,162 @@ CGI::Application::Dispatch. It also sets the prefix used to create the applicati
 to 'MyApp' and it tells CGI::Application::Dispatch that it shouldn't set the run mode
 but that it will be determined by the application module as usual (through the query
 string). It also sets a default application module to be used if there is no C<PATH_INFO>.
-So, a url of C<< /app/module_name >> would create an instance of C<< MyApp::Module::Name >>.
+So, a url of C</app/module_name> would create an instance of C<MyApp::Module::Name>.
+
+Using this method will add the C<Apache->request> object to your application's C<PARAMS>
+as 'r'.
+
+    # inside your app
+    my $request = $self->param('r');
+
+If you need more customization than can be accomplished with just L<prefix> 
+and L<default>, then it would be best to just subclass CGI::Application::Dispatch
+and override L<dispatch_args> since this method uses L<dispatch> to do the heavy lifting.
+
+    package MyApp::Dispatch;
+    use base 'CGI::Application::Dispatch';
+    
+    sub dispatch_args {
+        return {
+            prefix  => 'MyApp',
+            table   => [
+                ''                => { app => 'Welcome', rm => 'start' },
+                ':app/:rm'        => { },
+                'admin/:app/:rm'  => { prefix   => 'MyApp::Admin' },
+            ],
+            args_to_new => {
+                PARAMS => {
+                    foo => 'bar',
+                    baz => 'bam',
+                },
+            }
+        };
+    }
+
+    1;
+
+And then in your httpd.conf
+
+    <Location /app>
+        SetHandler perl-script
+        PerlHandler MyApp::Dispatch
+    </Location>
 
 =cut
 
 sub handler : method {
     my ($self, $r) = @_;
-    $CGI::Application::Dispatch::Error = '';
+    
+    # set the PATH_INFO
+    $ENV{PATH_INFO} ||= $r->path_info();
 
-    #get the run_mode from the path_info
+    # setup our args to dispatch()
+    my $args = $self->dispatch_args();
     my $dir_args = $r->dir_config();
-    my $path_info  = $r->path_info();
-    # if we don't have a path_info or it's just '/' then use the default
-    if( !$path_info || $path_info eq '/') {
-        $path_info = $dir_args->{CGIAPP_DISPATCH_DEFAULT};
-    }
+    $args->{default} = $dir_args->{CGIAPP_DISPATCH_DEFAULT}
+        if( $dir_args->{CGIAPP_DISPATCH_DEFAULT} );
+    $args->{prefix}  = $dir_args->{CGIAPP_DISPATCH_PREFIX}
+        if( $dir_args->{CGIAPP_DISPATCH_PREFIX} );
+    # add $r to the args_to_new's PARAMS
+    $args->{args_to_new}->{PARAMS}->{r} = $r;
 
-    my ($module, $partial_path);
-    # get the dispatch TABLE if we have it
-    my $table;
-    my @table_dirs = $r->dir_config->get('CGIAPP_DISPATCH_TABLE');
-    if( @table_dirs ) {
-        $table = { @table_dirs };
+    # set debug if we need to
+    $DEBUG = 1 if( $dir_args->{CGIAPP_DISPATCH_DEBUG} );
+    if( $DEBUG ) {
+        require Data::Dumper;
+        warn "[Dispatch] Calling dispatch() with the following arguments: " 
+            . Data::Dumper::Dumper($args) . "\n";
     }
-    # get the module's name and the PATH
-    ($module, $partial_path) = $self->get_module_name(
-            $path_info, 
-            $dir_args->{CGIAPP_DISPATCH_PREFIX},
-            $table,
-        );
-    $module = $self->require_module($module);
+    eval { $self->dispatch(%$args) };
+    $DEBUG = 0 if( $DEBUG );    # now we're done debugging
 
-    #if we couldn't require that mod
-    if ($CGI::Application::Dispatch::Error) {
+    #if we had an error
+    if ($@) {
         #let's check to see if that module could not be found
-        my $module_path = $module;
+        my $module_path = $MODULE_NAME;
         $module_path =~ s/::/\//g;
 
-        if ( $CGI::Application::Dispatch::Error =~ /Can't locate $module_path.pm/ ) {
+        if ( $@ =~ /Can't locate $module_path.pm/ ) {
             return $MP2 ? Apache2::Const::NOT_FOUND() : Apache::Constants::NOT_FOUND();
         }
         #else there was some other error
         else {
-            warn "CGI::Application::Dispatch - ERROR $CGI::Application::Dispatch::Error";
+            warn "CGI::Application::Dispatch - ERROR $@";
             return $MP2 ? Apache2::Const::SERVER_ERROR() : Apache::Constants::SERVER_ERROR();
         }
     }
 
-    #create an instance of this app and run it
-    my $app = $module->new(
-        PARAMS => { 
-            r                       => $r, 
-            CGIAPP_DISPATCH_PATH    => $partial_path, 
-        }, 
-    );
-
-    #set the run_mode if we want to
-    unless ($dir_args->{CGIAPP_DISPATCH_RM} && ( lc $dir_args->{CGIAPP_DISPATCH_RM} eq 'off') ) {
-        my $rm = $self->get_runmode($path_info);
-        $app->mode_param( sub { return $rm } ) if ($rm);
-    }
-
-    $app->run();
     return $MP2 ? Apache2::Const::OK() : Apache::Constants::OK();
 }
 
+=head2 dispatch_args
 
-=head2 dispatch()
+Returns a hashref of args that will be passed to L<dispatch>(). It will return the following
+structure by default.
 
-This method is primarily used in a non mod_perl setting in an small cgi script
-to dispatch requests. You can pass this method the same name value pairs that
-you would set for the L<"handler()"> method using the same options mentioned
-above.
+    {
+        prefix      => '',
+        args_to_new => {},
+        table       => [
+            ':app'      => {},
+            ':app/:rm'  => {},
+        ],
+    }
 
-    #!/usr/bin/perl
-    use strict;
-    use CGI::Application::Dispatch;
-
-    CGI::Application::Dispatch->dispatch(
-            PREFIX  => 'MyApp',
-            RM      => 0,
-            DEFAULT => 'module_name',
-        );
-
-This example would do the same thing that the previous example of how to use the
-L<"handler()"> method would do. The only difference is that it is done in a script
-and not in the apache configuration file.
-
-The benefit to using CGI::Application::Dispatch in a non mod_perl environment
-instead of the traditional instance scripts would only be seen in an application
-that has many instance scripts. It would mean your application would only need
-one script and many application modules. Since the dispatch script is so simple
-you just write it once and forget about it and turn your attention to your modules
-and templates.
-
-Any extra params to dispatch() will be passed on to the new() method of the
-CGI::Application module being called. 
+This is the perfect place to override when creating a subclass to provide a richer dispatch
+L<table>.
 
 =cut
 
-sub dispatch {
-    my $self = shift;
-    my %args = @_;
-    $CGI::Application::Dispatch::Error = '';
-
-    # get the PATH_INFO
-    my $path_info = $ENV{PATH_INFO};
-    my $prefix = ($args{CGIAPP_DISPATCH_PREFIX} || $args{PREFIX});
-    if( !$path_info || $path_info eq '/' ) {
-        $path_info = $args{CGIAPP_DISPATCH_DEFAULT} || $args{DEFAULT};
-    } 
-    # find out if we have a dispatch table
-    my $table = $args{CGIAPP_DISPATCH_TABLE} || $args{TABLE} || undef;
-    # get the module name and the path
-    my ($module, $partial_path) = $self->get_module_name( 
-            $path_info, 
-            $prefix,
-            $table,
-    );
-
-    # require the module or croak if we can't
-    $module = $self->require_module($module);
-
-    croak $CGI::Application::Dispatch::Error
-        if($CGI::Application::Dispatch::Error);
-
-    # Add the application name to any params being passed on to new() 
-    $args{PARAMS}->{CGIAPP_DISPATCH_PATH} = $partial_path;
-
-    my $app = $module->new(%args);
-    #use either the CGIAPP_DISPATCH_RM or the RM argument
-    my $use_rm = $args{CGIAPP_DISPATCH_RM} || $args{RM};
-    $use_rm = defined($use_rm) ? $use_rm : 1;
-    unless(!$use_rm) {
-        my $run_mode = $self->get_runmode($path_info);
-        $app->mode_param(sub { return $run_mode })
-            if( $run_mode );
-    }
-    $app->run();
+sub dispatch_args {
+    return {
+        prefix      => '',
+        args_to_new => {},
+        table       => [
+            ':app'      => {},
+            ':app/:rm'  => {},
+        ],
+    };
 }
 
-=head2 get_module_name($path_info, $prefix, [$table])
+=head2 translate_module_name 
 
-This method is used to control how the module name is generated from the C<PATH_INFO>. 
-Please see L<"PATH_INFO Parsing"> for more details on how this method performs it's job. 
+This method is used to control how the module name is translated from
+the matching section of the C<PATH_INFO> (see L<"PATH_INFO Parsing">.
 The main reason that this method exists is so that it can be overridden if it doesn't do 
 exactly what you want.
 
-This method will recieve three arguments in the following order:
+The following transformations are performed on the input:
 
-=over 8
+=over
 
-=item * $path_info
+=item The text is split on '_'s (underscores)
+and each word has it's first letter capitalized. The words are then joined
+back together and each instance of an underscore is replaced by '::'.
 
-The PATH_INFO string
 
-=item * $prefix
-
-The value of the CGIAPP_DISPATCH_PREFIX parameter.
-
-=item * $table
-
-A hash reference containing the value of the CGIAPP_DISPATCH_TABLE
-parameter.
+=item The text is split on '-'s (hyphens)
+and each word has it's first letter capitalized. The words are then joined
+back together and each instance of a hyphen removed.
 
 =back
 
-This method will return the name of the module to create. Actually it returns a list of items,
-the first being the name of the module, the second being the specific substring of the C<PATH_INFO>
-that was used to create the module name. If you decide to override this method to customize 
-the PATH_INFO-to-module-name-creation then you must also return this section of the C<PATH_INFO>
-that you used if it's not the same as the default. Otherwise the value of 
-L<CGIAPP_DISPATCH_PREFIX> will be C<< undef >>.
+Here are some examples to make it even clearer:
+
+    module_name         => Module::Name
+    module-name         => ModuleName
+    admin_top-scores    => Admin::TopScores
 
 =cut
 
-sub get_module_name {
-    my ($self, $path_info, $prefix, $table) = @_;
+sub translate_module_name {
+    my ($self, $input) = @_;
 
-    # make sure that there is at least a first '/'
-    $path_info = "/$path_info" if(index($path_info, '/') != 0);
+    $input = join('::', map { ucfirst($_) } split(/_/, $input));
+    $input = join('',   map { ucfirst($_) } split(/-/, $input));
 
-    # get the stuff between first and second '/' (if there is a second '/')
-    my $partial_path = (split(/\//, $path_info))[1];   
-
-    # if we are trying to access a mod
-    if ($partial_path) {
-        # Now translate the module from 'module_name' to 'Module::Name'
-        my $module = $partial_path;
-        # use the dispatch table if we have one
-        if( $table ) {
-            $module = $table->{$module};
-        } else {
-            $module = join( '::', ( map { ucfirst } ( split( /_/, $module ) ) ) );
-        }
-        # putting the prefix on if necessary
-        $module = "${prefix}::${module}" if($prefix);
-        return ($module, $partial_path);
-    }
-    return;
+    return $input;
 }
-
-
-=head2 get_runmode($path_info)
-
-This method is used to control how the run mode is generated from the C<PATH_INFO>. Please
-see L<"PATH_INFO Parsing"> for more details on how this method performs it's job. The main 
-reason that this method exists is so that it is overridden if it doesn't do exactly what you
-want.
-
-You shouldn't actually call this method yourself, just override it if necessary.
-
-=cut
-sub get_runmode {
-    my $self = shift;
-    return (split(/\//, shift))[2];
-}
-
 
 =head2 require_module($module_name)
 
@@ -424,16 +433,9 @@ This class method is used internally by CGI::Application::Dispatch to take a mod
 name (supplied by L<get_module_name>) and require it in a secure fashion. It
 is provided as a public class method so that if you override other functionality of
 this module, you can still safely require user specified modules. If there are
-any problems requiring the named module, the C<< $CGI::Application::Dispatch::Error >>
-variable will be set.
-
+any problems requiring the named module, then we will C<croak>.
 
     CGI::Application::Dispatch->require_module('MyApp::Module::Name');
-
-    if( $CGI::Application::Dispatch::Error ) {
-        die "Could not require module MyApp::Module::Name "
-            . $CGI::Application::Dispatch::Error
-    }
 
 =cut
 
@@ -442,13 +444,10 @@ sub require_module {
     if( $module ) {
         #untaint the module name
         ($module) = ($module =~ /^([A-Za-z][A-Za-z0-9_\-\:\']+)$/);   
-        unless ($module) {
-        $CGI::Application::Dispatch::Error = "Invalid characters used in module name";
-        return;
-        }
+        croak "Invalid characters used in module name" unless ($module);
         eval "require $module";
     
-        $CGI::Application::Dispatch::Error = $@ if $@;
+        croak $@ if( $@ );
         return $module;
     } else {
         return;
@@ -461,31 +460,146 @@ sub require_module {
 
 __END__
 
+=head1 DISPATCH TABLE
+
+Sometimes it's easiest to explain with an example, so here you go:
+
+  CGI::Application::Dispatch->dispatch(
+    prefix      => 'MyApp',
+    args_to_new => {
+        TMPL_PATH => 'myapp/templates'
+    },
+    table       => [
+        ''                         => { app => 'Blog', rm => 'recent'}
+        'posts/:category'          => { app => 'Blog', rm => 'posts' },
+        ':app/:rm/:id'             => { app => 'Blog' },  
+        'date/:year/:month?/:day?' => { 
+            app         => 'Blog', 
+            rm          => 'by_date', 
+            args_to_new => { TMPL_PATH = "events/" },
+        },
+    ]
+  );
+
+So first, this call to L<dispatch> set's the L<prefix> and passes a C<TMPL_PATH>
+into L<args_to_new>. Next it sets the L<table>. 
+
+
+=head2 VOCABULARY
+
+Just so we all understand what we're talking about....
+
+A table is an array where the elements are gouped as pairs (similar to a hash's
+key-value pairs, but as an array to preserve order). The first element of each pair
+is called a C<rule>. The second element in the pair is called the rule's C<arg list>.
+Inside a rule there are backslashes C</>. Anything set of characters between backslashes
+is called a C<token>.
+
+=head2 URL MATCHING
+
+When a URL comes in, Dispatch tries to match it against each rule in the table in 
+the order in which the rules are given. The first one to match wins.
+
+A rule consists of backslashes and tokens. A token can one of the following types:
+
+=over
+
+=item literal
+
+Any token which does not start with a colon (C<:>) is taken to be a literal
+string and must appear exactly as-is in the URL in order to match. In the rule
+
+    'posts/:category'
+
+C<posts> is a literal token.
+
+=item variable
+
+Any token which begins with a colon (C<:>) is a variable token. These are simply
+wild-card place holders in the rule that will match anything in the URL that isn't
+a backslash. These variables can later be referred to by using the C<< $self->param >>
+mechanism. In the rule
+
+    'posts/:category'
+
+C<:category> is a variable token. If the URL matched this rule, then you could retrieve
+the value of that token from whithin your application like so:
+
+    my $category = $self->param('category');
+
+There are some variable tokens which are special. These can be used to further customize
+the dispatching.
+
+=over
+
+=item :app
+
+This is the module name of the application. The value of this token will be sent to the
+L<translate_module_name> method and then prefixed with the L<prefix> if there is one.
+
+=item :rm
+
+This is the run mode of the application. The value of this token will be the actual name
+of the run mode used.
+
+=back
+
+=item optional-variable
+
+Any token which begins with a colon (C<:>) and ends with a question mark (<?>) is considered
+optional. If the rest of the URL matches the rest of the rule, then it doesn't matter whether
+it contains this token or not. It's best to only include optional-variable tokens at the end
+of your rule. In the rule
+
+    'date/:year/:month?/:day?' 
+    
+C<:month?> and C<:day?> are optional-variable tokens.
+
+Just like with L<variable> tokens, optional-variable tokens' values can also be retrieved by
+the application, if they existed in the URL.
+
+    if( defined $self->param('month') ) {
+        ...
+    }
+
+=back
+
+The main reason that we don't use regular expressions for dispatch rules is that regular
+expressions provide no mechanism for named back references, like variable tokens do.
+
+=head2 ARG LIST
+
+Each rule can have an accompanying arg-list. This arg list can contain special arguments
+that override something set higher up in L<dispatch> for this particular URL, or just
+have additional args passed available in C<< $self->param() >>
+
+For instance, if you want to override L<prefix> for a specific rule, then you can do so.
+
+    'admin/:app/:rm' => { prefix => 'MyApp::Admin' },
+
 =head1 PATH_INFO Parsing
 
 This section will describe how the application module and run mode are determined from
-the C<PATH_INFO> and what options you have to customize the process.
+the C<PATH_INFO> if no L<DISPATCH TABLE> is present, and what options you have to 
+customize the process.
 
 =head2 Getting the module name
 
-To put it simply, if you don't use a L<CGIAPP_DISPATCH_TABLE> then the C<PATH_INFO> 
-is split on backslahes (C</>). The second element of the
-returned list is used to create the application module. So if we have a path info of
+To get the name of the application module the C<PATH_INFO> is split on backslahes (C</>). 
+The second element of the returned list is used to create the application module. So if we 
+have a path info of
 
     /module_name/mode1
 
-Then the string 'module_name' is used. Underscores (C<_>) are turned into double colons
-(C<::>) and each word is passed through C<ucfirst> so that the first letter of each word
-is captialized.
-
-Then the C<CGIAPP_DISPATCH_PREFIX> is added to the beginning of this new module name with
-a double colon C<::> separating the two. 
+then the string 'module_name' is used. This is passed through the L<translate_module_name>
+method. Then if there is a C<prefix> (and there should always be a L<prefix>) it is added 
+to the beginning of this new module name with a double colon C<::> separating the two. 
 
 If you don't like the exact way that this is done, don't fret you do have a couple of options. 
-First, you can specify a L<CGIAPP_DISPATCH_TABLE> on a project-by-project basis to explicitly
-perform the C<PATH_INFO> to module-name translation. If you are looking for something more generic
-that you can later reuse, you can subclass Dispatch and override the 
-L<get_module_name()|"get_module_name($path_info, $prefix)"> to do whatever you wish.
+First, you can specify a L<DISPATCH TABLE> which is much more powerfule and flexible (in fact
+this default behavior is actually implemented internally with a dispatch table).
+Or if you want something a little simpler, you can simply subclass and extend the 
+L<translate_module_name> method.
 
 =head2 Getting the run mode
 
@@ -493,11 +607,9 @@ Just like the module name is retrieved from splitting the C<PATH_INFO> on backsl
 run mode. Only instead of using the second element of the resulting list, we use the third
 as the run mode. So, using the same example, if we have a path info of
 
-    /module_name/mode1
+    /module_name/mode2
 
-Then the string 'mode1' is used as the run mode unless the CGIAPP_DISPATCH_RM is set to false.
-As with the module name this behavior can be changed by overriding the 
-L<get_runmode()|"get_runmode($path_info)"> sub.
+Then the string 'mode2' is used as the run mode.
 
 =head1 MISC NOTES
 
@@ -509,9 +621,37 @@ CGI query strings are unaffected by the use of C<PATH_INFO> to obtain the module
 This means that any other modules you use to get access to you query argument (ie, L<CGI>,
 L<Apache::Request>) should not be affected. But, since the run mode may be determined by 
 CGI::Application::Dispatch having a query argument named 'rm' will be ignored by your application
-module (unless your CGIAPP_DISPATCH_RM is false).
+module.
 
 =back
+
+=head1 CLEAN URLS WITH MOD_REWRITE
+
+With a dispatch script, you can fairly clean URLS like this:
+
+ /cgi-bin/dispatch.cgi/module_name/run_mode
+
+However, including "/cgi-bin/dispatch.cgi" in ever URL doesn't add any value to the URL,
+so it's nice to remove it. This is easily done if you are using the Apache web server with 
+C<mod_rewrite> available. Adding the following to a C<.htaccess> file would allow you to
+simply use:
+
+ /module_name/run_mode
+
+.htaccess file example
+
+  RewriteEngine On
+
+  # You may want to change the base if you are using the dispatcher within a
+  # specific directory.
+  RewriteBase /
+
+  # If an actual file or directory is requested, serve directly    
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+
+  # Otherwise, pass everything through to the dispatcher
+  RewriteRule ^(.*)$ /cgi-bin/dispatch.cgi$1 [L,QSA]
 
 =head1 AUTHOR
 
@@ -538,17 +678,18 @@ L<http://www.cgi-app.org/>
 
 =item * Cees Hek <ceeshek@gmail.com>
 
+=item * Mark Stosberg <mark@summersault.com>
+
 =back
 
 =head1 SECURITY
 
 Since C::A::Dispatch will dynamically choose which modules to use as the content generators,
 it may give someone the ability to execute random modules on your system if those modules can
-be found in you path. Of course those modules would have to behave like CGI::Application based
+be found in you path. Of course those modules would have to behave like L<CGI::Application> based
 modules, but that still opens up the door more than most want. This should only be a problem
-if you don't use the CGIAPP_DISPATCH_PREFIX (or simple PREFIX in L<"dispatch()">) option. By
-using this option you are only allowing the url to pick from a certain directory (namespace)
-of applications to run.
+if you don't use a L<prefix>. By using this option you are only allowing Dispatch to pick from 
+a namespace of modules to run.
 
 =head1 SEE ALSO
 

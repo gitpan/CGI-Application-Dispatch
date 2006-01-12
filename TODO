@@ -1,0 +1,5 @@
+For the full 2.0 release
++ plugin to handle URL creation from dispatch table
++ keep parsed rules around in a class structure so it doesn't have to be done every time
++ optional URL cache so that if it sees the same URL more than one, it doesn't even have
+    to cycle through the parsed rules, it already knows which one to go to

@@ -4,7 +4,7 @@ use Apache::Test qw(plan ok have_lwp need_module);
 use Apache::TestRequest qw(GET);
 use Apache::TestUtil qw(t_cmp);
 
-plan tests => 33, need_module 'Apache::TestMB', have_lwp();
+plan tests => 29, need_module 'Apache::TestMB', have_lwp();
 my $response;
 my $content;
 
@@ -14,7 +14,7 @@ my $content;
     $response = GET '/app1/module_name/rm1';
     ok($response->is_success);
     $content = $response->content;
-    ok($content =~ /Module::Name->rm1/);
+    contains_string($content, 'Module::Name->rm1');
 }
 
 
@@ -24,117 +24,45 @@ my $content;
     $response = GET '/app2/module_name/rm1';
     ok($response->is_success);
     $content = $response->content;
-    ok($content =~ /MyApp::Module::Name->rm1/); 
+    contains_string($content, 'MyApp::Module::Name->rm1'); 
 }
 
 
 # 5..6
-# grab the RM correctly from the PATH_INFO if RM is not set
+# grab the RM correctly from the PATH_INFO
 {
     $response = GET '/app2/module_name/rm2';
     ok($response->is_success);
     $content = $response->content;
-    ok($content =~ /MyApp::Module::Name->rm2/); 
+    contains_string($content, 'MyApp::Module::Name->rm2'); 
 }
 
-# 7..12
-# grab the RM correctly from the PATH_INFO if RM is ON
-{
-    $response = GET '/app3/module_name/rm2';
-    ok($response->is_success);
-    $content = $response->content;
-    ok($content =~ /MyApp::Module::Name->rm2/);
-
-    # get the default (with trailing '/')
-    $response = GET '/app3/module_name/';
-    ok($response->is_success);
-    $content = $response->content;
-    ok($content =~ /MyApp::Module::Name->rm1/);
-
-    # get the default (without trailing '/')
-    $response = GET '/app3/module_name';
-    ok($response->is_success);
-    $content = $response->content;
-    ok($content =~ /MyApp::Module::Name->rm1/);
-}
-
-
-# 13..14
-# don't grab the run mode when RM is Off
-{
-    $response = GET '/app4/module_name/rm2';
-    ok($response->is_success);
-    $content = $response->content;
-    ok($content =~ /MyApp::Module::Name->rm1/);
-}
-
-# 15..16
-# CGIAPP_DISPATCH_PATH gets set correctly
-{
-    $response = GET '/app3/module_name/rm4';
-    ok($response->is_success);
-    $content = $response->content;
-    ok($content =~ /MyApp::Module::Name->rm4 path=module_name/);
-}
-
-# 17..20
-# CGIAPP_DISPATCH_DEFAULT is used correctly (with RM On)
+# 7..10
+# CGIAPP_DISPATCH_DEFAULT is used correctly
 {
     # no extra path
-    $response = GET '/app5';
+    $response = GET '/app3';
     ok($response->is_success);
     $content = $response->content;
-    ok($content =~ /MyApp::Module::Name->rm2/);
+    contains_string($content, 'MyApp::Module::Name->rm2');
 
     # only a '/' as the path_info
-    $response = GET '/app5/';
+    $response = GET '/app3/';
     ok($response->is_success);
     $content = $response->content;
-    ok($content =~ /MyApp::Module::Name->rm2/);
+    contains_string($content, 'MyApp::Module::Name->rm2');
 }
 
-# 21..22
-# CGIAPP_DISPATCH_DEFAULT is used correctly (with RM Off)
+# 11..12
+# override translate_module_name()
 {
-    $response = GET '/app6';
+    $response = GET '/app4/something_strange';
     ok($response->is_success);
     $content = $response->content;
-    ok($content =~ /MyApp::Module::Name->rm1/);
+    contains_string($content, 'MyApp::Module::Name->rm1');
 }
 
-# 23..24
-# override get_module_name()
-{
-    $response = GET '/app7';
-    ok($response->is_success);
-    $content = $response->content;
-    ok($content =~ /MyApp::Module::Name->rm1/);
-}
-
-# 25..26
-# override get_runmode()
-{
-    $response = GET '/app8';
-    ok($response->is_success);
-    $content = $response->content;
-    ok($content =~ /MyApp::Module::Name->rm2/);
-}
-
-# 27..30
-# CGIAPP_DISPATCH_TABLE with PerlSetVar/PerlAddVar
-{
-    $response = GET '/app9/foo/rm2';
-    ok($response->is_success);
-    $content = $response->content();
-    ok($content =~ /MyApp::Module::Name->rm2/);
-
-    $response = GET '/app9/bar/rm1';
-    ok($response->is_success);
-    $content = $response->content();
-    ok($content =~ /MyApp::Module::Name->rm1/);
-}
-
-# 31..33
+# 13..15
 # cause errors
 {
     # non existant module
@@ -150,4 +78,50 @@ my $content;
     ok($response->is_error);
 }
 
+# 16..29
+# dispatch table via a subclass
+{
+    $response = GET '/app5/module_name';
+    ok($response->is_success);
+    $content = $response->content;
+    contains_string($content, 'MyApp::Module::Name->rm1', 'matched :app');
 
+    $response = GET '/app5/module_name/rm2';
+    ok($response->is_success);
+    $content = $response->content;
+    contains_string($content, 'MyApp::Module::Name->rm2', 'matched :app/:rm');
+
+    $response = GET '/app5/module_name/rm3/stuff';
+    ok($response->is_success);
+    $content = $response->content;
+    contains_string($content, 'MyApp::Module::Name->rm3 my_param=stuff', 'matched :app/:rm/:my_param');
+
+    $response = GET '/app5/module_name/bar/stuff';
+    ok($response->is_success);
+    $content = $response->content;
+    contains_string($content, 'MyApp::Module::Name->rm3 my_param=stuff', 'matched :app/bar/:my_param');
+
+    $response = GET '/app5/foo/bar';
+    ok($response->is_success);
+    $content = $response->content;
+    contains_string($content, 'MyApp::Module::Name->rm2', 'matched foo/bar');
+
+    $response = GET '/app5/module_name/foo';
+    ok($response->is_success);
+    $content = $response->content;
+    contains_string($content, 'MyApp::Module::Name->rm3 my_param=', 'missing optional');
+
+    $response = GET '/app5/module_name/foo/weird';
+    ok($response->is_success);
+    $content = $response->content;
+    contains_string($content, 'MyApp::Module::Name->rm3 my_param=weird', 'present optional');
+}
+
+sub contains_string {
+    my ($str, $substr, $diag) = @_;
+    if( index($str, $substr) != -1) {
+        ok(1);
+    } else {
+        ok(0);
+    }
+}
