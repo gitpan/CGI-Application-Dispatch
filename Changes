@@ -1,5 +1,10 @@
 Revision history for Perl extension CGI::Application::Dispatch.
 
+2.00_03
+    - Added cache of REQUEST_URI -> dispatch mapping (Mark Stosberg, Michael Peters)
+    - fixed local args_to_new overrides (Mark Stosberg)
+    - added support for debug flag to dispatch() (Mark Stosberg)
+
 2.00_02
     - Added optional-variable tokens to dispatch tables
     - added more docs and examples for dispatch tables

@@ -1,8 +1,8 @@
 use Test::More;
-use Test::LongString;
+use Test::LongString max => 500;
 use strict;
 use warnings;
-plan(tests => 23);
+plan(tests => 24);
 
 # 1..5
 # make sure we can get to our modules
@@ -31,11 +31,11 @@ my $output = '';
 # 8
 # prefix
 {
-    local $ENV{PATH_INFO} = '/module_name/rm1';
+    local $ENV{PATH_INFO} = '/module_name/rm2';
     $output = CGI::Application::Dispatch->dispatch(
         prefix => 'MyApp',
     );
-    contains_string($output, 'MyApp::Module::Name->rm1', 'dispatch(): prefix');
+    contains_string($output, 'MyApp::Module::Name->rm2', 'dispatch(): prefix');
 }
 
 # 9
@@ -107,7 +107,7 @@ my $output = '';
 # 16
 # args_to_new
 {
-    local $ENV{PATH_INFO} = '/module_name/rm3';
+    local $ENV{PATH_INFO} = '/module_name/rm4';
     $output = CGI::Application::Dispatch->dispatch(
         prefix      => 'MyApp',
         args_to_new => {
@@ -149,3 +149,20 @@ my $output = '';
     contains_string($output, 'MyApp::Module::Name->rm3 my_param=weird', 'present optional');
 }
 
+# 24
+# local args_to_new
+{
+    local $ENV{PATH_INFO} = '/module_name/local_args_to_new';
+    $output = CGI::Application::Dispatch->dispatch(
+        prefix      => 'MyApp',
+        table => [
+            ':app/:rm' => {
+                args_to_new => {
+                    TMPL_PATH => 'events',
+                },
+            },
+        ],
+
+    );
+    contains_string($output, 'events', 'local args_to_new works');
+}

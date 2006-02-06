@@ -3,10 +3,15 @@ use strict;
 use warnings;
 use Carp;
 
-our $VERSION = '2.00_02';
+our $VERSION = '2.00_03';
 my ($MP, $MP2);
 our $DEBUG = 0;
+
+# Used for error handling
 my $MODULE_NAME;
+
+# a cache
+our %URL_DISPATCH_CACHE = ();
 
 BEGIN {
     if( $ENV{MOD_PERL} ) {
@@ -147,24 +152,52 @@ to simplify your application and your URLs, but there are many cases where you w
 more power. Enter the dispatch table. Since this table can be slightly complicated,
 a whole section exists on it's use. Please see the L<DISPATCH TABLE> section.
 
+=item debug
+
+Send debugging output for this module to STDERR. 
+
 =back
 
 =cut
 
 sub dispatch {
     my ($self, %args) = @_;
+
     %args = ( %{ $self->dispatch_args }, %args);
 
-    # check for extra args (for backwards compatability)
+    unless(defined $ENV{PATH_INFO}) { 
+        croak "reality checked failed: PATH_INFO is not defined in the environment";
+    }
+
+    $DEBUG = 1 if $args{debug};
+
+    # Immediatey, try a cached result.
+    if (
+        defined $ENV{REQUEST_URI}
+        &&
+        $ENV{REQUEST_URI}
+        &&
+        ( my $final_args = $URL_DISPATCH_CACHE{ $ENV{REQUEST_URI} } )
+    ) {
+        if( $DEBUG ) {
+            require Data::Dumper;
+            warn "[Dispatch] - Found cached version of URL '$ENV{REQUEST_URI}'. Using the following args: "
+                . Data::Dumper::Dumper($final_args);
+        }
+        return $self->_run_app(@$final_args);
+    }
+
+    # check for extra args (for backwards compatibility)
     foreach (keys %args) {
         next if( 
             $_ eq 'prefix' || 
             $_ eq 'default' || 
+            $_ eq 'debug' || 
             $_ eq 'rm' || 
             $_ eq 'args_to_new' || 
             $_ eq 'table' 
         );
-        warn "Passing extra args ('$_') to dispatch() is deprecated! Please use 'args_to_new'";
+        carp "Passing extra args ('$_') to dispatch() is deprecated! Please use 'args_to_new'";
         $args{args_to_new}->{$_} = delete $args{$_};
     }
     %args = map { lc $_ => $args{$_} } keys %args;  # lc for backwards compatability
@@ -173,18 +206,18 @@ sub dispatch {
     my $path_info = $ENV{PATH_INFO};
     # use the 'default' if we need to
     $path_info = $args{default} || '' if( !$path_info || $path_info eq '/' );
-    # make sure they all start with a '/'
+    # make sure they all start with a '/', to correspond with the RE we'll make
     $path_info = "/$path_info" unless( index($path_info, '/') == 0 );
     $path_info = "$path_info/" unless( index($path_info, '/') == length($path_info) -1);
 
     # get the module name from the table
     my $table = $args{table} or croak "Must at least have a default 'table'!";
     my $table_index;
-    my ($module, $rm);
+    my ($module, $rm, $local_args_to_new);
     for(my $i = 0; $i < scalar (@$table); $i+=2) {
         # translate the rule into a regular expression, but remember where the named args are
         my $rule = $table->[$i];
-        # make sure they start and end with a '/'
+        # make sure they start and end with a '/' to match how PATH_INFO is formatted
         $rule = "/$rule" unless( index($rule, '/') == 0 );  
         $rule = "$rule/" unless( index($rule, '/') == length($rule) -1); 
         my ($regex, @names);
@@ -195,7 +228,12 @@ sub dispatch {
         { 
             # remove warning about $4 being used in the result when it doesn't always match
             no warnings; 
-            while( $rule =~ s/(^|\/)(:([^\/\?]+)(\?)?)/$1$4([^\/]*)$4/ ) {
+            # TODO: document what $1 - $4 mean.
+            while( $rule =~ s{
+                    (^|/)                 # beginning or a /
+                    (:([^/\?]+)(\?)?)     # stuff in between 
+                }
+                {$1$4([^/]*)$4}x ) {
                 push(@names, $3); # it's the 3rd grouping from the match above
             }
         }
@@ -226,28 +264,69 @@ sub dispatch {
             $module = $self->translate_module_name($module_name);
             # now add the prefix
             my $local_prefix = $named_args->{prefix} || $args{prefix};
+
             $module = $local_prefix . '::' . $module if( $local_prefix );
+
+            if (defined $named_args->{'args_to_new'}) {
+                $local_args_to_new = $named_args->{'args_to_new'};
+            }
+            else {
+                $local_args_to_new = $args{args_to_new};
+            }
 
             # add the rest of the named_args to PARAMS
             foreach my $named (keys %$named_args) {
-                next if( $named eq 'rm' || $named eq 'app' );
-                $args{args_to_new}->{PARAMS}->{$named} = $named_args->{$named};
+                if ($named =~ m/^PARAMS|TMPL_PATH/) {
+                    croak "PARAMS and TMPL_PATH are not allowed here. Did you mean to use args_to_new?";
+                }
+                next if ($named =~ m/^rm|app$/);
+                $local_args_to_new->{PARAMS}->{$named} = $named_args->{$named};
             }
+
+            # Use local args to new, or default to the global
+
             # remember the rm if we have one
             $rm = $named_args->{rm};
+
+            last;
         }
     };
+
+    my @final_dispatch_args = ($module,$rm,$local_args_to_new);
+
+    # Cache this URL - dispatch map for later use.
+    $URL_DISPATCH_CACHE{$ENV{REQUEST_URI}} = \@final_dispatch_args
+        if( $ENV{REQUEST_URI} );
+
+    return $self->_run_app(@final_dispatch_args);
         
+}
+
+sub _run_app {
+    my ($self,$module,$rm,$args) = @_;
+    croak "no module name provided" unless (defined $module and length $module);
+
+    if( $DEBUG ) {
+        require Data::Dumper;
+        warn "[Dispatch] Final args to pass to new(): " . Data::Dumper::Dumper($args) . "\n";
+    }
+    
     # now create and run then application object
     $MODULE_NAME = $module;
     warn "[Dispatch] creating instance of $module\n" if( $DEBUG );
     $self->require_module($module);
     my $app;
-    if( defined $args{args_to_new} && %{$args{args_to_new}} ) {
-        $app = $module->new($args{args_to_new});
-    } else {
-        $app = $module->new();
+    eval {
+        if( defined $args && %{$args} ) {
+            $app = $module->new($args);
+        } else {
+            $app = $module->new();
+        }
+    };
+    if ($@) {
+        croak "Unable to load '$module': $@";
     }
+
     $app->mode_param(sub { return $rm }) if( $rm );
     $app->run();
 }

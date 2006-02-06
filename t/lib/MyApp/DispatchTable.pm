@@ -5,12 +5,12 @@ sub dispatch_args {
     return {
         prefix  => 'MyApp',
         table   => [
-            ':app'                => { },
-            ':app/:rm'            => { },
-            ':app/:rm/:my_param'  => { },
+            'foo/bar'             => { app => 'Name', rm => 'rm2', prefix => 'MyApp::Module' },
             ':app/bar/:my_param'  => { rm => 'rm3' },
             ':app/foo/:my_param?' => { rm => 'rm3' },
-            'foo/bar'             => { app => 'Name', rm => 'rm2', prefix => 'MyApp::Module' },
+            ':app/:rm/:my_param'  => { },
+            ':app/:rm'            => { },
+            ':app'                => { },
         ],
     };
 }
