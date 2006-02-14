@@ -4,7 +4,7 @@ use Apache::Test qw(plan ok have_lwp need_module);
 use Apache::TestRequest qw(GET);
 use Apache::TestUtil qw(t_cmp);
 
-plan tests => 29, need_module 'Apache::TestMB', have_lwp();
+plan tests => 38, need_module 'Apache::TestMB', have_lwp();
 my $response;
 my $content;
 
@@ -62,23 +62,31 @@ my $content;
     contains_string($content, 'MyApp::Module::Name->rm1');
 }
 
-# 13..15
+# 13..20
 # cause errors
 {
     # non existant module
     $response = GET '/app2/asdf/rm1';
     ok($response->is_error);
+    ok($response->code eq '404');
 
     # poorly written module
     $response = GET '/app2/module_bad/rm1';
     ok($response->is_error);
+    ok($response->code eq '500');
+
+    # non existant run mode
+    $response = GET '/app2/module_name/rm5';
+    ok($response->is_error);
+    ok($response->code eq '404');
 
     # invalid characters
     $response = GET '/app2/module;_bad';
     ok($response->is_error);
+    ok($response->code eq '500');
 }
 
-# 16..29
+# 21..38
 # dispatch table via a subclass
 {
     $response = GET '/app5/module_name';
@@ -115,6 +123,16 @@ my $content;
     ok($response->is_success);
     $content = $response->content;
     contains_string($content, 'MyApp::Module::Name->rm3 my_param=weird', 'present optional');
+
+    $response = GET '/app5';
+    ok($response->is_success);
+    $content = $response->content;
+    contains_string($content, 'MyApp::Module::Name->rm1', 'empty default');
+
+    $response = GET '/app5/';
+    ok($response->is_success);
+    $content = $response->content;
+    contains_string($content, 'MyApp::Module::Name->rm1', 'empty default');
 }
 
 sub contains_string {

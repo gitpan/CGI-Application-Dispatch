@@ -3,7 +3,7 @@ use strict;
 use warnings;
 use Carp;
 
-our $VERSION = '2.00_03';
+our $VERSION = '2.00_04';
 my ($MP, $MP2);
 our $DEBUG = 0;
 
@@ -163,11 +163,7 @@ Send debugging output for this module to STDERR.
 sub dispatch {
     my ($self, %args) = @_;
 
-    %args = ( %{ $self->dispatch_args }, %args);
-
-    unless(defined $ENV{PATH_INFO}) { 
-        croak "reality checked failed: PATH_INFO is not defined in the environment";
-    }
+    %args = ( %{ $self->dispatch_args(\%args) }, %args);
 
     $DEBUG = 1 if $args{debug};
 
@@ -177,7 +173,7 @@ sub dispatch {
         &&
         $ENV{REQUEST_URI}
         &&
-        ( my $final_args = $URL_DISPATCH_CACHE{ $ENV{REQUEST_URI} } )
+        ( my $final_args = $self->_get_cache($ENV{REQUEST_URI} ) )
     ) {
         if( $DEBUG ) {
             require Data::Dumper;
@@ -208,7 +204,7 @@ sub dispatch {
     $path_info = $args{default} || '' if( !$path_info || $path_info eq '/' );
     # make sure they all start with a '/', to correspond with the RE we'll make
     $path_info = "/$path_info" unless( index($path_info, '/') == 0 );
-    $path_info = "$path_info/" unless( index($path_info, '/') == length($path_info) -1);
+    $path_info = "$path_info/" unless( substr($path_info, -1) eq '/');
 
     # get the module name from the table
     my $table = $args{table} or croak "Must at least have a default 'table'!";
@@ -219,7 +215,7 @@ sub dispatch {
         my $rule = $table->[$i];
         # make sure they start and end with a '/' to match how PATH_INFO is formatted
         $rule = "/$rule" unless( index($rule, '/') == 0 );  
-        $rule = "$rule/" unless( index($rule, '/') == length($rule) -1); 
+        $rule = "$rule/" unless( substr($rule, -1) eq '/');
         my ($regex, @names);
         # '/:foo' will become '/([^\/]*)' 
         # and
@@ -246,7 +242,7 @@ sub dispatch {
         }
 
         # if we found a match, then run with it
-        if( $path_info =~ /^$rule/ ) {
+        if( $path_info =~ /$rule/ ) {
             warn "[Dispatch] Matched!\n" if( $DEBUG );
 
             my $named_args = $table->[$i+1];
@@ -292,26 +288,52 @@ sub dispatch {
         }
     };
 
-    my @final_dispatch_args = ($module,$rm,$local_args_to_new);
+    if (defined $module and length $module) {
+        my @final_dispatch_args = ($module,$rm,$local_args_to_new);
 
-    # Cache this URL - dispatch map for later use.
-    $URL_DISPATCH_CACHE{$ENV{REQUEST_URI}} = \@final_dispatch_args
-        if( $ENV{REQUEST_URI} );
+        # Cache this URL - dispatch map for later use.
+        $self->_set_cache($ENV{REQUEST_URI} => \@final_dispatch_args)
+            if( $ENV{REQUEST_URI} );
 
-    return $self->_run_app(@final_dispatch_args);
-        
+        return $self->_run_app(@final_dispatch_args);
+
+    }
+    # Return 404 here if module isn't found 
+    # but not for mod_perl, which handles 404 stuff itself. 
+    elsif  (not $ENV{MOD_PERL} ) {
+        warn "[Dispatch] 404 for $ENV{REQUEST_URI}" if $DEBUG;
+        print "Status: 404 Not Found\n";
+        print "Content-type: text/html\n\n";
+        print q{<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
+                <HTML><HEAD><TITLE>File Not Found</TITLE></HEAD><BODY>
+                <H1>File Not Found.</H1></BODY></HTML>};
+        # TODO: possibly provide more feedback in a way that is XSS safe.
+        # (I'm not sure that passing through the raw ENV variable directly is safe.) 
+        # <P>We tried: $ENV{REQUEST_URI}</P></BODY></HTML>";
+    }
+}
+
+# protected method - designed to be used by sub classes, not by end users
+sub _set_cache {
+    my ($class, $key, $value) = @_;
+    $URL_DISPATCH_CACHE{$key} = $value;
+}
+
+# protected method - designed to be used by sub classes, not by end users
+sub _get_cache {
+    my ($class, $key) = @_;
+    return $URL_DISPATCH_CACHE{$key};
 }
 
 sub _run_app {
     my ($self,$module,$rm,$args) = @_;
-    croak "no module name provided" unless (defined $module and length $module);
 
     if( $DEBUG ) {
         require Data::Dumper;
         warn "[Dispatch] Final args to pass to new(): " . Data::Dumper::Dumper($args) . "\n";
     }
     
-    # now create and run then application object
+    # now create and run the application object
     $MODULE_NAME = $module;
     warn "[Dispatch] creating instance of $module\n" if( $DEBUG );
     $self->require_module($module);
@@ -324,7 +346,9 @@ sub _run_app {
         }
     };
     if ($@) {
-        croak "Unable to load '$module': $@";
+        my $msg = "Unable to run '$module': $@";
+        warn "[Dispatch] $msg" if( $DEBUG );
+        croak $msg;
     }
 
     $app->mode_param(sub { return $rm }) if( $rm );
@@ -399,24 +423,24 @@ sub handler : method {
     $ENV{PATH_INFO} ||= $r->path_info();
 
     # setup our args to dispatch()
-    my $args = $self->dispatch_args();
-    my $dir_args = $r->dir_config();
-    $args->{default} = $dir_args->{CGIAPP_DISPATCH_DEFAULT}
-        if( $dir_args->{CGIAPP_DISPATCH_DEFAULT} );
-    $args->{prefix}  = $dir_args->{CGIAPP_DISPATCH_PREFIX}
-        if( $dir_args->{CGIAPP_DISPATCH_PREFIX} );
+    my %args;
+    my $config_args = $r->dir_config();
+    foreach my $var qw(DEFAULT PREFIX) {
+        my $dir_var = "CGIAPP_DISPATCH_$var";
+        $args{lc($var)} = $config_args->{$dir_var}
+            if( $config_args->{$dir_var} );
+    }
     # add $r to the args_to_new's PARAMS
-    $args->{args_to_new}->{PARAMS}->{r} = $r;
+    $args{args_to_new}->{PARAMS}->{r} = $r;
 
     # set debug if we need to
-    $DEBUG = 1 if( $dir_args->{CGIAPP_DISPATCH_DEBUG} );
+    $DEBUG = 1 if( $config_args->{CGIAPP_DISPATCH_DEBUG} );
     if( $DEBUG ) {
         require Data::Dumper;
         warn "[Dispatch] Calling dispatch() with the following arguments: " 
-            . Data::Dumper::Dumper($args) . "\n";
+            . Data::Dumper::Dumper(\%args) . "\n";
     }
-    eval { $self->dispatch(%$args) };
-    $DEBUG = 0 if( $DEBUG );    # now we're done debugging
+    eval { $self->dispatch(%args) };
 
     #if we had an error
     if ($@) {
@@ -425,6 +449,11 @@ sub handler : method {
         $module_path =~ s/::/\//g;
 
         if ( $@ =~ /Can't locate $module_path.pm/ ) {
+            warn "CGI::Application::Dispatch - Couldn't find module $MODULE_NAME";
+            return $MP2 ? Apache2::Const::NOT_FOUND() : Apache::Constants::NOT_FOUND();
+        # else if the run mode doesn't exist
+        } elsif( $@ =~ /No such run mode/ ) {
+            warn "CGI::Application::Dispatch - Couldn't find runmode";
             return $MP2 ? Apache2::Const::NOT_FOUND() : Apache::Constants::NOT_FOUND();
         }
         #else there was some other error
@@ -454,12 +483,17 @@ structure by default.
 This is the perfect place to override when creating a subclass to provide a richer dispatch
 L<table>.
 
+When called, it receives 1 argument, which is a reference to the hash of args passed into
+L<dispatch>.
+
 =cut
 
 sub dispatch_args {
+    my ($self, $args) = @_;
     return {
-        prefix      => '',
-        args_to_new => {},
+        default     => ( $args->{default} || ''),
+        prefix      => ( $args->{prefix}  || ''),
+        args_to_new => ( $args->{args_to_new} || {} ),
         table       => [
             ':app'      => {},
             ':app/:rm'  => {},
@@ -526,7 +560,10 @@ sub require_module {
         croak "Invalid characters used in module name" unless ($module);
         eval "require $module";
     
-        croak $@ if( $@ );
+        if( $@ ) {
+            warn "[Dispatch] Unable to load module '$module': $@" if( $DEBUG );
+            croak $@;
+        }
         return $module;
     } else {
         return;
@@ -732,6 +769,40 @@ simply use:
   # Otherwise, pass everything through to the dispatcher
   RewriteRule ^(.*)$ /cgi-bin/dispatch.cgi$1 [L,QSA]
 
+=head1 SUBCLASSING
+
+While Dispatch tries to be flexible, it won't be able to do everything that people want. Hopefully
+we've made it flexible enough so that if it doesn't do I<The Right Thing> you can easily subclass
+it.
+
+=head2 PROTECTED METHODS
+
+The following methods are intended to be overridden by subclasses if necessary. They are not
+part of the public API since end users will never touch them. However, to ensure that your
+subclass of Dispatch does not break with a new release, they are documented here and are considered
+to be part of the API and will not be changed without very good reasons.
+
+=over
+
+=item _get_cache
+
+This method will return the arguments that would have been determined from parsing the PATH_INFO
+(and possibly using the Dispatch Table), but that were stored in the cache from a previous run.
+It receives the URL of the request to use as the key:
+
+    my $args = $self->_get_cache($url)
+
+=item _set_cache
+
+This method sets the arguments determined form parsing the PATH_INFO to be used for this URL
+for future requests to the same URL.
+It receives the URL of the request (to be used as the key to the cache) and a reference to
+the data being stored:
+
+    $self->_set_cache($url, $args);
+
+=back
+
 =head1 AUTHOR
 
 Michael Peters <mpeters@plusthree.com>
@@ -758,6 +829,8 @@ L<http://www.cgi-app.org/>
 =item * Cees Hek <ceeshek@gmail.com>
 
 =item * Mark Stosberg <mark@summersault.com>
+
+=item * Viacheslav Sheveliov <vsheveliov@mail.ru>
 
 =back
 

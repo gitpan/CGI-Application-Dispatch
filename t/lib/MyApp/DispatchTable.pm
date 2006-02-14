@@ -11,6 +11,7 @@ sub dispatch_args {
             ':app/:rm/:my_param'  => { },
             ':app/:rm'            => { },
             ':app'                => { },
+            ''                    => { app => 'Module::Name', rm => 'rm1' },
         ],
     };
 }
