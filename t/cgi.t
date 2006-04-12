@@ -1,5 +1,6 @@
 use Test::More;
 use Test::LongString max => 500;
+use IO::Scalar;
 use strict;
 use warnings;
 plan(tests => 24);
@@ -19,11 +20,12 @@ my $output = '';
 {
     # with starting '/'
     local $ENV{PATH_INFO} = '/module_name/rm1';
-    $output = CGI::Application::Dispatch->dispatch();
+    my $output = CGI::Application::Dispatch->dispatch();
     contains_string($output, 'Module::Name->rm1', 'dispatch(): module_name');
 
     # without starting '/'
     local $ENV{PATH_INFO} = 'module_name/rm1';
+    $output = '';
     $output = CGI::Application::Dispatch->dispatch();
     contains_string($output, 'Module::Name->rm1', 'dispatch(): module_name');
 }
@@ -95,13 +97,13 @@ my $output = '';
 {
     # non-existant module
     local $ENV{PATH_INFO} = '/foo';
-    eval { $output = CGI::Application::Dispatch->dispatch() };
-    ok($@, 'non-existant module');
+    $output = CGI::Application::Dispatch->dispatch();
+    like($output, qr/Not Found/i);
 
     # no a valid path_info
     local $ENV{PATH_INFO} = '//';
-    eval { $output = CGI::Application::Dispatch->dispatch() };
-    ok($@, 'no module name');
+    $output = CGI::Application::Dispatch->dispatch();
+    like($output, qr/Internal Server Error/i);
 }
 
 # 16

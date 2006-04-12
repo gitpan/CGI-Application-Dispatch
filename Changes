@@ -1,16 +1,25 @@
 Revision history for Perl extension CGI::Application::Dispatch.
 
+2.00_05
+    - Fully working on mod_perl 2
+    - Using Exception::Class internally to handle exceptions instead of passing around return codes
+    - Added 'not_found' option to dispatch()
+    - Added more flexible error handling [Viacheslav Sheveliov]
+    - Improve mod_rewrite examples [Mark Stosberg]
+    - removed now unused variables [Viacheslav Sheveliov]
+    - speed up some of the rule-to-regex processing [Viacheslav Sheveliov]
+
 2.00_04
-    - handler() now sends a 404 if the run mode can't be found either (Michael Peters)
-    - some environments don't set the PATH_INFO if it's blank, so handle that better (Michael Peters)
-    - added _get_cache() and _set_cache() protected methods to further help subclassing (Viacheslav Sheveliov, Michael Peters)
-    - now passing same args passed from dispatch() into dispatch_args() (Viacheslav Sheveliov, Michael Peters)   
-    - Added built-in 404 page if no application is found to dispatch to. (Mark Stosberg)
+    - handler() now sends a 404 if the run mode can't be found either
+    - some environments don't set the PATH_INFO if it's blank, so handle that better
+    - added _get_cache() and _set_cache() protected methods to further help subclassing [Viacheslav Sheveliov, Michael Peters]
+    - now passing same args passed from dispatch() into dispatch_args() [Viacheslav Sheveliov, Michael Peters)  ]
+    - Added built-in 404 page if no application is found to dispatch to. [Mark Stosberg]
 
 2.00_03
-    - Added cache of REQUEST_URI -> dispatch mapping (Mark Stosberg, Michael Peters)
-    - fixed local args_to_new overrides (Mark Stosberg)
-    - added support for debug flag to dispatch() (Mark Stosberg)
+    - Added cache of REQUEST_URI -> dispatch mapping [Mark Stosberg, Michael Peters]
+    - fixed local args_to_new overrides [Mark Stosberg]
+    - added support for debug flag to dispatch() [Mark Stosberg]
 
 2.00_02
     - Added optional-variable tokens to dispatch tables

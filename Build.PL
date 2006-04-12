@@ -6,9 +6,11 @@ my $build = $build_pkg->new (
         module_name         => 'CGI::Application::Dispatch',
         license             => 'perl',
         requires            => {
-            'perl'              => '5.6.0',
-            'CGI::Application'  => '3.2',
-            'Test::More'        => 0,
+            'perl'                       => '5.6.0',
+            'CGI::Application'           => '3.2',
+            'Test::More'                 => 0,
+            'Exception::Class'           => 0,
+            'Exception::Class::TryCatch' => 0,
         },
         build_requires      => {
             'Apache::Test'      => '1.16',

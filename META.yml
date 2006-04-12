@@ -1,21 +1,8 @@
----
+--- #YAML:1.0
 name: CGI-Application-Dispatch
-version: 2.00_04
+version: 2.00_05
 author:
   - Michael Peters <mpeters@plusthree.com>
 abstract: Dispatch requests to CGI::Application based objects
 license: perl
-resources:
-  license: http://dev.perl.org/licenses/
-requires:
-  CGI::Application: 3.2
-  Test::More: 0
-  perl: 5.6.0
-build_requires:
-  Apache::Test: 1.16
-  Test::LongString: 0
-provides:
-  CGI::Application::Dispatch:
-    file: lib/CGI/Application/Dispatch.pm
-    version: 2.00_04
-generated_by: Module::Build version 0.2703
+generated_by: Module::Build version 0.2612, without YAML.pm
