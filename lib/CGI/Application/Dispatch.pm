@@ -1,10 +1,10 @@
 package CGI::Application::Dispatch;
 use strict;
 use warnings;
-use Carp;
+use Carp qw(confess carp);
 use Exception::Class::TryCatch qw(catch);
 
-our $VERSION = '2.00_05';
+our $VERSION = '2.00_06';
 our $DEBUG = 0;
 
 # Used for error handling
@@ -82,7 +82,7 @@ Under normal cgi
     package MyApp::Dispatch;
     use base 'CGI::Application::Dispatch';
 
-    sub args_to_dispatch {
+    sub dispatch_args {
         return {
             prefix  => 'MyApp',
             table   => [
@@ -239,8 +239,14 @@ sub dispatch {
     my ( $module, $rm, $local_prefix, $local_args_to_new );
 
     # take args from path
-    my $named_args = $self->_parse_path( $path_info, $args{table} )
-		or throw_not_found("Could not parse PATH_INFO");
+    my $named_args;
+    eval {
+        $named_args = $self->_parse_path( $path_info, $args{table} )
+		    or throw_not_found("Could not parse PATH_INFO");
+    }; 
+    my $e;
+    catch( $e, [ 'CGI::Application::Dispatch::Exception' ])
+        and return $self->http_error($e, $args{not_found});
 
     if ($DEBUG) {
         require Data::Dumper;
@@ -275,9 +281,14 @@ sub dispatch {
         $self->require_module($module);
         $output = $self->_run_app($module,$rm,$local_args_to_new);
     };
-    my $e;
-    catch( $e, [ 'CGI::Application::Dispatch::Exception' ])
-        and return $self->http_error($e, $args{not_found});
+    $e = catch();
+    if( $e ) {
+        if( $e->isa('CGI::Application::Dispatch::Exception') ) {
+            return $self->http_error($e, $args{not_found});
+        } else {
+            confess $e;
+        }
+    }
 
     # Cache this URL - dispatch map for later use.
     $self->_url_cache(\@final_dispatch_args);
@@ -378,15 +389,18 @@ sub http_error {
             <HTML><HEAD>
             <TITLE>$errno $status_lines{$errno}</TITLE>
             </HEAD><BODY>
-            <H1>ERROR: $status_lines{$errno}</H1>
-            <P>Please contact the server administrator )
+            <H1>$status_lines{$errno}</H1>
+            <P><ADDRESS>)
             . ( $ENV{SERVER_ADMIN} ? "($ENV{SERVER_ADMIN})" : '') 
-            . qq( and inform them
-            of the time the error occurred, and anything you might have done that may have
-            caused the error.</P>
+            . qq(</ADDRESS></P>
             <HR>)
             . ( $ENV{SERVER_SIGNATURE} || '' )
             . qq(</BODY></HTML>);
+        # Send output to browser (unless we're in serious debug mode!)
+        if (not $ENV{CGI_APP_RETURN_ONLY}) {
+            print $output;
+        }
+
         return $output;
     }
 }
@@ -493,7 +507,13 @@ sub _run_app {
     };
 
     if ($@) {
-        throw_not_found('RM not found') if ( $@ =~ /No such run mode/ );
+        # catch invalid run-mode stuff
+        if ( $@ =~ /No such run mode/ ) {
+            throw_not_found('RM not found') 
+        # otherwise, just pass it up the chain
+        } else {
+            die $@;
+        }
     }
 
     return $output;

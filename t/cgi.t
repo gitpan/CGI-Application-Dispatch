@@ -3,7 +3,7 @@ use Test::LongString max => 500;
 use IO::Scalar;
 use strict;
 use warnings;
-plan(tests => 24);
+plan(tests => 25);
 
 # 1..5
 # make sure we can get to our modules
@@ -14,6 +14,17 @@ require_ok('MyApp::Dispatch');
 require_ok('MyApp::DispatchTable');
 local $ENV{CGI_APP_RETURN_ONLY} = '1';
 my $output = '';
+
+# to capture and junk STDERR
+my $junk;
+{
+    no strict;
+    open SAVE_ERR, ">&STDERR";
+    close STDERR;
+    open STDERR, ">", \$junk
+        or warn "Could not redirect STDERR?\n";
+
+}
 
 # 6..7
 # module name
@@ -168,3 +179,30 @@ my $output = '';
     );
     contains_string($output, 'events', 'local args_to_new works');
 }
+
+
+# 25
+# 404 
+{
+    local $ENV{PATH_INFO} = '/somewhere_else';
+    $output = CGI::Application::Dispatch->dispatch(
+        prefix      => 'MyApp',
+        table => [
+            ':app/:rm' => {
+                args_to_new => {
+                    TMPL_PATH => 'events',
+                },
+            },
+        ],
+
+    );
+    like_string($output, qr/404 not found/i, "proper 404 error is returned when PATH_INFO isn't parsed.");
+}
+
+# restore STDERR
+{
+    close STDERR;
+    open STDERR, ">&SAVE_ERR";
+    close SAVE_ERR;
+}
+

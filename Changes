@@ -1,5 +1,12 @@
 Revision history for Perl extension CGI::Application::Dispatch.
 
+    - Some errors in run() execution were being silently ignored [Michael Peters]
+    - POD correction [Ron Savage]
+    - When the PATH_INFO can't be parsed, a proper 404 is returned instead of
+      an internal server error. [Mark Stosberg]
+    - Fix error page printing. [Mark Stosberg] 
+    - Added experimental CGI::Application::Dispatch::Regexp to distribution
+
 2.00_05
     - Fully working on mod_perl 2
     - Using Exception::Class internally to handle exceptions instead of passing around return codes
