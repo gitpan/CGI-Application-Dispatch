@@ -1,5 +1,13 @@
 Revision history for Perl extension CGI::Application::Dispatch.
 
+2.01
+    - Improved docs for CGI::Application::Dispatch::Regexp, including
+      a typo fix in the Synopsis. [Mark Stosberg]
+    - Fixed bug in mod_perl 2 where status/error codes were sent to the browser
+      after the content
+
+2.00 Jul 3rd, 2006
+
     - Some errors in run() execution were being silently ignored [Michael Peters]
     - POD correction [Ron Savage]
     - When the PATH_INFO can't be parsed, a proper 404 is returned instead of

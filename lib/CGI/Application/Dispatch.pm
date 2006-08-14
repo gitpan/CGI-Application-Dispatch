@@ -1,10 +1,10 @@
 package CGI::Application::Dispatch;
 use strict;
 use warnings;
-use Carp qw(confess carp);
+use Carp qw(carp cluck);
 use Exception::Class::TryCatch qw(catch);
 
-our $VERSION = '2.00';
+our $VERSION = '2.01';
 our $DEBUG = 0;
 
 # Used for error handling
@@ -39,17 +39,17 @@ use Exception::Class (
     'CGI::Application::Dispatch::ERROR' => {
         isa         => 'CGI::Application::Dispatch::Exception',
         alias       => 'throw_error',
-        description => (IS_MODPERL() ? SERVER_ERROR() : 500 ),
+        description => 500,
     },
     'CGI::Application::Dispatch::NOT_FOUND' => {
         isa         => 'CGI::Application::Dispatch::Exception',
         alias       => 'throw_not_found',
-        description => ( IS_MODPERL() ? NOT_FOUND() : 404 ),
+        description => 404,
     },
     'CGI::Application::Dispatch::BAD_REQUEST' => {
         isa         => 'CGI::Application::Dispatch::Exception',
         alias       => 'throw_bad_request',
-        description => ( IS_MODPERL2() ? HTTP_BAD_REQUEST() : IS_MODPERL ? BAD_REQUEST : 400 ),
+        description => 400,
     },
 );
 
@@ -242,11 +242,12 @@ sub dispatch {
     my $named_args;
     eval {
         $named_args = $self->_parse_path( $path_info, $args{table} )
-		    or throw_not_found("Could not parse PATH_INFO");
+		    or throw_not_found(
+                "Resource not found " . ($ENV{REQUEST_URI} ? "for '$ENV{REQUEST_URI}'" : '')
+            );
     }; 
-    my $e;
-    catch( $e, [ 'CGI::Application::Dispatch::Exception' ])
-        and return $self->http_error($e, $args{not_found});
+    my $e = catch();
+    return $self->http_error($e, $args{not_found}) if( $e );
 
     if ($DEBUG) {
         require Data::Dumper;
@@ -282,13 +283,7 @@ sub dispatch {
         $output = $self->_run_app($module,$rm,$local_args_to_new);
     };
     $e = catch();
-    if( $e ) {
-        if( $e->isa('CGI::Application::Dispatch::Exception') ) {
-            return $self->http_error($e, $args{not_found});
-        } else {
-            confess $e;
-        }
-    }
+    return $self->http_error($e, $args{not_found}) if( $e );
 
     # Cache this URL - dispatch map for later use.
     $self->_url_cache(\@final_dispatch_args);
@@ -360,7 +355,13 @@ sub http_error {
         $redirect = 1;
         warn "[Dispatch] Redirection for NOT FOUND to $url" if( $DEBUG );
     }
-    my $errno = $e->description;
+    my $errno;
+    if( $e->isa('CGI::Application::Dispatch::Exception') ) {
+        $errno = $e->description;
+    } else {
+        $errno = 500;
+    }
+warn "\nERRNO: $errno\n\n";
 
     # if we're under mod_perl
     if (IS_MODPERL) {
@@ -606,7 +607,15 @@ sub handler : method {
 
     $self->dispatch(%args);
 
-    return $r->status || OK();
+    if( $r->status == 404 ) {
+        return NOT_FOUND();
+    } elsif( $r->status == 500 ) {
+        return SERVER_ERROR();
+    } elsif( $r->status == 400 ) {
+        return BAD_REQUEST();
+    } else {
+        return OK();
+    }
 }
 
 =head2 dispatch_args

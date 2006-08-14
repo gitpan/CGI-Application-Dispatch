@@ -10,11 +10,9 @@ CGI::Application::Dispatch::Regexp -  Dispatch requests to CGI::Application base
 
 =head1 SYNOPSIS
 
-    package MyApp::Dispatch;
-    use base 'CGI::Application::Dispatch';
+    use CGI::Application::Dispatch::Regexp;
 
-    sub args_to_dispatch {
-        return {
+    CGI::Application::Dispatch::Regexp->dispatch(
             prefix  => 'MyApp',
             table   => [
                 ''                                    => { app => 'Welcome', rm => 'start' },
@@ -22,8 +20,7 @@ CGI::Application::Dispatch::Regexp -  Dispatch requests to CGI::Application base
                 qr|/([^/]+)/([^/]+)/?|                => { names => [qw(app rm)]           },
                 qr|/([^/]+)/([^/]+)/page(\d+)\.html?| => { names => [qw(app rm page)]      },
             ],
-        };
-    }
+    );
 
 
 =head1 DESCRIPTION
@@ -34,16 +31,19 @@ regular expressions to transform PATH_INFO into argument list.
 
 =head1 DISPATCH TABLE
 
-Dispatch table should contain list of regular expressions with hashref of
+The dispatch table should contain list of regular expressions with hashref of
 corresponding parameters. Hash element 'names' is a list of names of regular
-expression groups.
-
+expression groups. The default table looks like this:
 
         table       => [
-            qr|/([^/]+)/?|                         => { names => ['app']           },
-            qr|/([^/]+)/([^/]+)/?|                 => { names => [qw(app rm)]      },
-            qr|/([^/]+)/([^/]+)/page(\d+)\.html/?| => { names => [qw(app rm page)] },
-        ]
+            qr|/([^/]+)/?|          => { names => ['app']      },
+            qr|/([^/]+)/([^/]+)/?|  => { names => [qw(app rm)] },
+        ],
+
+Here's an example of defining a custom 'page' parameter:
+
+        qr|/([^/]+)/([^/]+)/page(\d+)\.html/?| => { names => [qw(app rm page)] },
+
 
 =head1 SEE ALSO
 

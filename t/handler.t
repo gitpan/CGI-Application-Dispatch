@@ -120,10 +120,10 @@ my $content;
     $content = $response->content;
     contains_string($content, 'MyApp::Module::Name->rm3 my_param=', 'missing optional');
 
-    $response = GET '/app5/module_name/foo/weird';
+    $response = GET '/app5/module_name/foo/weird%20stuff';
     ok($response->is_success);
     $content = $response->content;
-    contains_string($content, 'MyApp::Module::Name->rm3 my_param=weird', 'present optional');
+    contains_string($content, 'MyApp::Module::Name->rm3 my_param=weird stuff', 'present optional');
 
     $response = GET '/app5';
     ok($response->is_success);
