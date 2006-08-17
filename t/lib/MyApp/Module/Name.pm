@@ -15,18 +15,21 @@ sub setup {
 
 sub rm1 {
     my $self = shift;
-    return 'MyApp::Module::Name->rm1';
-}
+    return 'MyApp::Module::Name->rm1' 
+        . ($self->param('hum') ? 'hum=' . $self->param('hum') : '');
+ }
 
 sub rm2 {
     my $self = shift;
-    return 'MyApp::Module::Name->rm2';
+    return 'MyApp::Module::Name->rm2'
+        . ($self->param('hum') ? 'hum=' . $self->param('hum') : '');
 }
 
 sub rm3 {
     my $self = shift;
     my $param = $self->param('my_param') || '';
-    return "MyApp::Module::Name->rm3 my_param=$param";
+    return "MyApp::Module::Name->rm3 my_param=$param"
+        . ($self->param('hum') ? 'hum=' . $self->param('hum') : '');
 }
 
 # because of caching, we can't re-use PATH_INFO, so we do this. 

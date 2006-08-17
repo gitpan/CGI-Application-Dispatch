@@ -1,10 +1,13 @@
 Revision history for Perl extension CGI::Application::Dispatch.
 
+2.02 Aug 16, 2006
+    - args_to_new were not merging PARAMS properly [Michael Peters]
+
 2.01
     - Improved docs for CGI::Application::Dispatch::Regexp, including
       a typo fix in the Synopsis. [Mark Stosberg]
     - Fixed bug in mod_perl 2 where status/error codes were sent to the browser
-      after the content
+      after the content [Michael Peters]
 
 2.00 Jul 3rd, 2006
 

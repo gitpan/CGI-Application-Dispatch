@@ -5,7 +5,7 @@ use Apache::TestRequest qw(GET);
 use Apache::TestUtil qw(t_cmp);
 use Test::More;
 
-plan tests => 38, need_module 'Apache::TestMB', have_lwp();
+plan tests => 47, need_module 'Apache::TestMB', have_lwp();
 my $response;
 my $content;
 
@@ -87,53 +87,62 @@ my $content;
     cmp_ok($response->code, 'eq', '400', 'server error: invalid characters');
 }
 
-# 21..38
+# 21..47
 # dispatch table via a subclass
 {
     $response = GET '/app5/module_name';
     ok($response->is_success);
     $content = $response->content;
     contains_string($content, 'MyApp::Module::Name->rm1', 'matched :app');
+    contains_string($content, 'hum=electra_200');
 
     $response = GET '/app5/module_name/rm2';
     ok($response->is_success);
     $content = $response->content;
     contains_string($content, 'MyApp::Module::Name->rm2', 'matched :app/:rm');
+    contains_string($content, 'hum=electra_200');
 
     $response = GET '/app5/module_name/rm3/stuff';
     ok($response->is_success);
     $content = $response->content;
     contains_string($content, 'MyApp::Module::Name->rm3 my_param=stuff', 'matched :app/:rm/:my_param');
+    contains_string($content, 'hum=electra_200');
 
     $response = GET '/app5/module_name/bar/stuff';
     ok($response->is_success);
     $content = $response->content;
     contains_string($content, 'MyApp::Module::Name->rm3 my_param=stuff', 'matched :app/bar/:my_param');
+    contains_string($content, 'hum=electra_200');
 
     $response = GET '/app5/foo/bar';
     ok($response->is_success);
     $content = $response->content;
     contains_string($content, 'MyApp::Module::Name->rm2', 'matched foo/bar');
+    contains_string($content, 'hum=electra_200');
 
     $response = GET '/app5/module_name/foo';
     ok($response->is_success);
     $content = $response->content;
     contains_string($content, 'MyApp::Module::Name->rm3 my_param=', 'missing optional');
+    contains_string($content, 'hum=electra_200');
 
     $response = GET '/app5/module_name/foo/weird%20stuff';
     ok($response->is_success);
     $content = $response->content;
     contains_string($content, 'MyApp::Module::Name->rm3 my_param=weird stuff', 'present optional');
+    contains_string($content, 'hum=electra_200');
 
     $response = GET '/app5';
     ok($response->is_success);
     $content = $response->content;
     contains_string($content, 'MyApp::Module::Name->rm1', 'empty default');
+    contains_string($content, 'hum=electra_200');
 
     $response = GET '/app5/';
     ok($response->is_success);
     $content = $response->content;
     contains_string($content, 'MyApp::Module::Name->rm1', 'empty default');
+    contains_string($content, 'hum=electra_200');
 }
 
 sub contains_string {

@@ -4,7 +4,7 @@ use warnings;
 use Carp qw(carp cluck);
 use Exception::Class::TryCatch qw(catch);
 
-our $VERSION = '2.01';
+our $VERSION = '2.02';
 our $DEBUG = 0;
 
 # Used for error handling
@@ -198,7 +198,59 @@ browser (under CGI) or to Apache (under mod_perl).
 sub dispatch {
     my ($self, %args) = @_;
 
-    %args = ( %{ $self->dispatch_args(\%args) }, %args);
+    # merge dispatch_args() and %args with %args taking precendence
+    my $dispatch_args = $self->dispatch_args(\%args);
+    foreach my $arg (keys %$dispatch_args) {
+        # args_to_new should be merged
+        if( $arg eq 'args_to_new' ) {
+            $args{args_to_new} ||= {};
+
+            # merge the PARAMS hash
+            if( $dispatch_args->{args_to_new}->{PARAMS} ) {
+                # merge the hashes
+                $args{args_to_new}->{PARAMS} = {
+                    %{$dispatch_args->{args_to_new}->{PARAMS}},
+                    %{ $args{args_to_new}->{PARAMS} || {} },
+                }
+            }
+
+            # combine any TMPL_PATHs
+            if( $dispatch_args->{args_to_new}->{TMPL_PATH} ) {
+                # make sure the orginial is an array ref
+                if( $args{args_to_new}->{TMPL_PATH} ) {
+                    if( ! ref $args{args_to_new}->{TMPL_PATH} ) {
+                        $args{args_to_new}->{TMPL_PATH} = [
+                            $args{args_to_new}->{TMPL_PATH}
+                        ]; 
+                    }
+                } else {
+                    $args{args_to_new}->{TMPL_PATH} = [];
+                }
+
+                # now add the rest to the end
+                if( ref $dispatch_args->{args_to_new}->{TMPL_PATH} ) {
+                    push(
+                        @{$args{args_to_new}->{TMPL_PATH}},
+                        @{$dispatch_args->{args_to_new}->{TMPL_PATH}},
+                    );
+                } else {
+                    push(
+                        @{$args{args_to_new}->{TMPL_PATH}},
+                        $dispatch_args->{args_to_new}->{TMPL_PATH},
+                    );
+                }
+            }
+
+            # now merge the args_to_new hashes
+            $args{args_to_new} = {
+                %{$dispatch_args->{args_to_new}},
+                %{$args{args_to_new}},
+            };
+        } else {
+            # anything else should override
+            $args{$arg} = $dispatch_args->{$arg} unless exists $args{$arg};
+        }
+    }
 
     $DEBUG = 1 if $args{debug};
 
@@ -361,7 +413,6 @@ sub http_error {
     } else {
         $errno = 500;
     }
-warn "\nERRNO: $errno\n\n";
 
     # if we're under mod_perl
     if (IS_MODPERL) {

@@ -13,6 +13,9 @@ sub dispatch_args {
             ':app'                => { },
             ''                    => { app => 'Module::Name', rm => 'rm1' },
         ],
+        args_to_new => {
+            PARAMS => { hum => 'electra_2000' },
+        },
     };
 }
 
