@@ -4,7 +4,7 @@ use warnings;
 use Carp qw(carp cluck);
 use Exception::Class::TryCatch qw(catch);
 
-our $VERSION = '2.02';
+our $VERSION = '2.03';
 our $DEBUG = 0;
 
 # Used for error handling
@@ -256,6 +256,9 @@ sub dispatch {
 
     # Immediatey, try a cached result.
     if ( my $final_args = $self->_url_cache() ) {
+        # we can't use a cached Apache object
+        $final_args->[2]{PARAMS}{r} = $args{args_to_new}{PARAMS}{r}
+            if IS_MODPERL();
         if( $DEBUG ) {
             require Data::Dumper;
             warn "[Dispatch] - Found cached version of URL '$ENV{REQUEST_URI}'. "

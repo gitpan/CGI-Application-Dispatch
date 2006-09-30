@@ -1,5 +1,9 @@
 Revision history for Perl extension CGI::Application::Dispatch.
 
+2.03
+    - When running a cached URL, we were mistakenly using the '$r' object
+      from the cached request instead of the newly given one under mod_perl.
+
 2.02 Aug 16, 2006
     - args_to_new were not merging PARAMS properly [Michael Peters]
 

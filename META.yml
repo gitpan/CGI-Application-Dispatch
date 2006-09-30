@@ -1,6 +1,6 @@
 ---
 name: CGI-Application-Dispatch
-version: 2.02
+version: 2.03
 author:
   - 'Michael Peters <mpeters@plusthree.com>'
 abstract: Dispatch requests to CGI::Application based objects
@@ -19,7 +19,7 @@ build_requires:
 provides:
   CGI::Application::Dispatch:
     file: lib/CGI/Application/Dispatch.pm
-    version: 2.02
+    version: 2.03
   CGI::Application::Dispatch::Regexp:
     file: lib/CGI/Application/Dispatch/Regexp.pm
 generated_by: Module::Build version 0.2805
