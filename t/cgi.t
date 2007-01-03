@@ -3,7 +3,7 @@ use Test::LongString max => 500;
 use IO::Scalar;
 use strict;
 use warnings;
-plan(tests => 25);
+plan(tests => 27);
 
 # 1..5
 # make sure we can get to our modules
@@ -130,7 +130,7 @@ my $junk;
     contains_string($output, 'MyApp::Module::Name->rm3 my_param=more testing', 'PARAMS passed through');
 }
 
-# 17..23
+# 17..24
 # use a full dispatch table in a subclass
 {
     local $ENV{PATH_INFO} = '/module_name';
@@ -160,9 +160,17 @@ my $junk;
     local $ENV{PATH_INFO} = '/module_name/foo/weird';
     $output = MyApp::DispatchTable->dispatch();
     contains_string($output, 'MyApp::Module::Name->rm3 my_param=weird', 'present optional');
+
+    local $ENV{PATH_INFO} = '/module_name/baz/this/is/extra';
+    $output = MyApp::DispatchTable->dispatch();
+    contains_string($output, 'MyApp::Module::Name->rm5 dispatch_url_remainder=this/is/extra', 'url remainder');
+
+    local $ENV{PATH_INFO} = '/module_name/bap/this/is/extra';
+    $output = MyApp::DispatchTable->dispatch();
+    contains_string($output, 'MyApp::Module::Name->rm5 the_rest=this/is/extra', 'named url remainder');
 }
 
-# 24
+# 26
 # local args_to_new
 {
     local $ENV{PATH_INFO} = '/module_name/local_args_to_new';
@@ -181,7 +189,7 @@ my $junk;
 }
 
 
-# 25
+# 27
 # 404 
 {
     local $ENV{PATH_INFO} = '/somewhere_else';

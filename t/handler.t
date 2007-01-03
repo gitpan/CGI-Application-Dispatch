@@ -1,11 +1,11 @@
 use strict;
 use warnings FATAL => 'all';
 use Apache::Test qw(have_lwp need_module :withtestmore);
-use Apache::TestRequest qw(GET);
+use Apache::TestRequest qw(GET POST);
 use Apache::TestUtil qw(t_cmp);
 use Test::More;
 
-plan tests => 47, need_module 'Apache::TestMB', have_lwp();
+plan tests => 61, need_module 'Apache::TestMB', have_lwp();
 my $response;
 my $content;
 
@@ -74,10 +74,10 @@ my $content;
     # poorly written module
     $response = GET '/app2/module_bad/rm1';
     ok($response->is_error);
-    cmp_ok($response->code, 'eq', '500', 'server error: module doesnt complie');
+    cmp_ok($response->code, 'eq', '500', 'server error: module doesnt compile');
 
     # non existant run mode
-    $response = GET '/app2/module_name/rm5';
+    $response = GET '/app2/module_name/rm6';
     ok($response->is_error);
     cmp_ok($response->code, 'eq', '404', 'not found: no run mode');
 
@@ -145,11 +145,56 @@ my $content;
     contains_string($content, 'hum=electra_200');
 }
 
+# 48..61
+# http method dispatching
+{
+    $response = GET '/http_method/module_rest/rm1';
+    ok($response->is_success);
+    $content = $response->content;
+    contains_string($content, 'MyApp::Module::Rest->rm1_GET', 'auto_rest GET');
+
+    $response = POST '/http_method/module_rest/rm1';
+    ok($response->is_success);
+    $content = $response->content;
+    contains_string($content, 'MyApp::Module::Rest->rm1_POST', 'auto_rest POST');
+
+    $response = POST '/http_method/module_rest/rm2';
+    ok($response->is_success);
+    $content = $response->content;
+    contains_string($content, 'MyApp::Module::Rest->rm2_post', 'auto_rest_lc POST');
+
+    $response = GET '/http_method/module_rest/rm3';
+    ok($response->is_success);
+    $content = $response->content;
+    contains_string($content, 'MyApp::Module::Rest->get_rm3', 'HTTP method in rule');
+
+    $response = GET '/http_method/module_rest/rm4';
+    ok($response->is_success);
+    $content = $response->content;
+    contains_string($content, 'MyApp::Module::Rest->rm4', 'non-auto_rest GET');
+    lacks_string($content, 'MyApp::Module::Rest->rm4_GET', 'non-auto_rest GET');
+
+    $response = POST '/http_method/module_rest/rm4';
+    ok($response->is_success);
+    $content = $response->content;
+    contains_string($content, 'MyApp::Module::Rest->rm4', 'non-auto_rest POST');
+    lacks_string($content, 'MyApp::Module::Rest->rm4_POST', 'non-auto_rest POST');
+}
+
 sub contains_string {
     my ($str, $substr, $diag) = @_;
     if( index($str, $substr) != -1) {
         ok(1);
     } else {
         ok(0);
+    }
+}
+
+sub lacks_string {
+    my ($str, $substr, $diag) = @_;
+    if( index($str, $substr) != -1) {
+        ok(0);
+    } else {
+        ok(1);
     }
 }

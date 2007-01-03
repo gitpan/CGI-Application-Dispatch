@@ -4,14 +4,8 @@ use warnings;
 use Carp qw(carp cluck);
 use Exception::Class::TryCatch qw(catch);
 
-our $VERSION = '2.03';
+our $VERSION = '2.10_01';
 our $DEBUG = 0;
-
-# Used for error handling
-
-# a cache
-our %URL_DISPATCH_CACHE = ();
-our $URL_DISPATCH_CACHE_MAX = 1000;
 
 BEGIN {
     use constant IS_MODPERL  => exists( $ENV{MOD_PERL} );
@@ -87,7 +81,7 @@ Under normal cgi
             prefix  => 'MyApp',
             table   => [
                 ''                => { app => 'Welcome', rm => 'start' },
-                :app/:rm'         => { },
+                ':app/:rm'        => { },
                 'admin/:app/:rm'  => { prefix   => 'MyApp::Admin' },
             ],
         };
@@ -191,6 +185,20 @@ exist.
 If this value is not present, then Dispatch will return a NOT FOUND error either to the 
 browser (under CGI) or to Apache (under mod_perl).
 
+=item auto_rest
+
+This tells Dispatch that you are using REST by default and that you care about which HTTP method
+is being used. Dispatch will append the HTTP method name (upper case by default) to
+the run mode that is determined after finding the appropriate dispatch rule. So a GET request
+that translates into C<MyApp::Module->foo> will become C<MyApp::Module->foo_GET>.
+
+This can be overridden on a per-rule basis in a custom dispatch table.
+
+=item auto_rest_lc
+
+In combinaion with L<auto_rest> this tells Dispatch that you prefer lower cased HTTP method names.
+So instead of C<foo_POST> and C<foo_GET> you'll have C<foo_post> and C<foo_get>.
+
 =back
 
 =cut
@@ -252,30 +260,19 @@ sub dispatch {
         }
     }
 
-    $DEBUG = 1 if $args{debug};
-
-    # Immediatey, try a cached result.
-    if ( my $final_args = $self->_url_cache() ) {
-        # we can't use a cached Apache object
-        $final_args->[2]{PARAMS}{r} = $args{args_to_new}{PARAMS}{r}
-            if IS_MODPERL();
-        if( $DEBUG ) {
-            require Data::Dumper;
-            warn "[Dispatch] - Found cached version of URL '$ENV{REQUEST_URI}'. "
-                . "Using the following args: " . Data::Dumper::Dumper($final_args);
-        }
-        return $self->_run_app(@$final_args);
-    }
+    $DEBUG = $args{debug} ? 1 : 0;
 
     # check for extra args (for backwards compatibility)
     foreach (keys %args) {
         next if(
-            $_ eq 'prefix'      or
-            $_ eq 'default'     or
-            $_ eq 'debug'       or
-            $_ eq 'rm'          or
-            $_ eq 'args_to_new' or
-            $_ eq 'table'       or
+            $_ eq 'prefix'       or
+            $_ eq 'default'      or
+            $_ eq 'debug'        or
+            $_ eq 'rm'           or
+            $_ eq 'args_to_new'  or
+            $_ eq 'table'        or
+            $_ eq 'auto_rest'    or
+            $_ eq 'auto_rest_lc' or
             $_ eq 'not_found'
         );
         carp "Passing extra args ('$_') to dispatch() is deprecated! Please use 'args_to_new'";
@@ -321,6 +318,14 @@ sub dispatch {
         ( $module, $local_prefix, $rm, $local_args_to_new ) =
           delete @{$named_args}{qw(app prefix rm args_to_new)};
 
+        # If another name for dispatch_url_remainder has been set move
+        # the value to the requested name
+        if($$named_args{'*'}) {
+          $$named_args{$$named_args{'*'}} = $$named_args{'dispatch_url_remainder'};
+          delete $$named_args{'*'};
+          delete $$named_args{'dispatch_url_remainder'};
+        }
+
         $module or throw_error("App not defined");
         $module = $self->translate_module_name($module);
 
@@ -332,6 +337,14 @@ sub dispatch {
         # add the rest of the named_args to PARAMS
         @{ $local_args_to_new->{PARAMS} }{ keys %$named_args } = values %$named_args;
 
+        my $auto_rest = defined $named_args->{auto_rest} ? $named_args->{auto_rest} : $args{auto_rest};
+        if( $auto_rest ) {
+            my $method_lc = defined $named_args->{auto_rest_lc} ? $named_args->{auto_rest_lc} : $args{auto_rest_lc};
+            my $http_method = $self->_http_method;
+            $http_method = lc $http_method if $method_lc;
+            $rm .= "_$http_method"; 
+        }
+
         # load and run the module
         @final_dispatch_args = ($module, $rm, $local_args_to_new);
         $self->require_module($module);
@@ -339,9 +352,6 @@ sub dispatch {
     };
     $e = catch();
     return $self->http_error($e, $args{not_found}) if( $e );
-
-    # Cache this URL - dispatch map for later use.
-    $self->_url_cache(\@final_dispatch_args);
 
     return $output;
 }
@@ -419,7 +429,7 @@ sub http_error {
 
     # if we're under mod_perl
     if (IS_MODPERL) {
-        my $r = IS_MODPERL2 ? Apache2::RequestUtil->request : Apache->request;
+        my $r = $self->_r;
         # if we just want to redirect
         if( $redirect ) {
             $r->status( $errno );
@@ -461,7 +471,6 @@ sub http_error {
 }
 
 
-
 # protected method - designed to be used by sub classes, not by end users
 sub _parse_path {
     my ( $self, $path, $table ) = @_;
@@ -474,10 +483,20 @@ sub _parse_path {
         return;
     }
 
+    # look at each rule and stop when we get a match
     for ( my $i = 0 ; $i < scalar(@$table) ; $i += 2 ) {
 
-        # translate the rule into a regular expression, but remember where the named args are
         my $rule = $table->[$i];
+
+        # are we trying to dispatch based on HTTP_METHOD?
+        my $http_method_regex = qr/\[([^\]]+)\]$/;
+        if( $rule =~ /$http_method_regex/ ) {
+            my $http_method = $1;
+            # go ahead to the next rule
+            next unless lc($1) eq lc($self->_http_method);
+            # remove the method portion from the rule
+            $rule =~ s/$http_method_regex//;
+        }
 
         # make sure they start and end with a '/' to match how PATH_INFO is formatted
         $rule = "/$rule" unless ( index( $rule, '/' ) == 0 );
@@ -485,6 +504,7 @@ sub _parse_path {
 
         my @names = ();
 
+        # translate the rule into a regular expression, but remember where the named args are
         # '/:foo' will become '/([^\/]*)'
         # and
         # '/:bar?' will become '/?([^\/]*)?'
@@ -497,6 +517,13 @@ sub _parse_path {
             push(@names, $3);
             $1 . ($4 ? '?([^/]*)?' : '([^/]*)')
         }gxe;
+
+        # '/*/' will become '/(.*)/$' the end / is added to the end of
+        # both $rule and $path elsewhere
+        if($rule =~ m{/\*/$}) {
+          $rule =~ s{/\*/$}{/(.*)/\$};
+          push(@names,'dispatch_url_remainder');
+        } 
 
         warn "[Dispatch] Trying to match '${path}' against rule '$table->[$i]' using regex '${rule}'\n"
 			if $DEBUG;
@@ -516,31 +543,9 @@ sub _parse_path {
     return;
 }
 
-# protected method - designed to be used by sub classes, not by end users
-sub _url_cache {
-    my ( $self, $value ) = @_;
-    my $key;
+sub _http_method { IS_MODPERL ? shift->_r->method : $ENV{HTTP_REQUEST_METHOD}; }
 
-    # may be PATH_TRANSLATED only to use here?
-    foreach my $env qw(SERVER_NAME SCRIPT_NAME PATH_INFO) {
-        $key .= ":" . ($ENV{$env} || '');
-    }
-
-    if ( defined($value) ) {
-        # shrink cache, if it's too large
-        delete(
-            @URL_DISPATCH_CACHE{
-                ( keys %URL_DISPATCH_CACHE )
-                  [ 0 .. int( $URL_DISPATCH_CACHE_MAX / 3 ) ]
-              }
-          )
-          if ( keys %URL_DISPATCH_CACHE > $URL_DISPATCH_CACHE_MAX );
-
-        $URL_DISPATCH_CACHE{$key} = $value;
-    }
-
-    return $URL_DISPATCH_CACHE{$key};
-}
+sub _r { IS_MODPERL2 ? Apache2::RequestUtil->request : Apache->request; }
 
 sub _run_app {
     my ( $self, $module, $rm, $args ) = @_;
@@ -564,7 +569,7 @@ sub _run_app {
     if ($@) {
         # catch invalid run-mode stuff
         if ( $@ =~ /No such run mode/ ) {
-            throw_not_found('RM not found') 
+            throw_not_found("RM '$rm' not found") 
         # otherwise, just pass it up the chain
         } else {
             die $@;
@@ -583,7 +588,7 @@ hash of new()
     <Location /app>
         SetHandler perl-script
         PerlHandler CGI::Application::Dispatch
-        LerlSetVar  CGIAPP_DISPATCH_PREFIX  MyApp
+        PerlSetVar  CGIAPP_DISPATCH_PREFIX  MyApp
         PerlSetVar  CGIAPP_DISPATCH_DEFAULT /module_name
     </Location>
 
@@ -800,7 +805,7 @@ Sometimes it's easiest to explain with an example, so here you go:
         TMPL_PATH => 'myapp/templates'
     },
     table       => [
-        ''                         => { app => 'Blog', rm => 'recent'}
+        ''                         => { app => 'Blog', rm => 'recent'},
         'posts/:category'          => { app => 'Blog', rm => 'posts' },
         ':app/:rm/:id'             => { app => 'Blog' },
         'date/:year/:month?/:day?' => {
@@ -891,6 +896,29 @@ the application, if they existed in the URL.
     if( defined $self->param('month') ) {
         ...
     }
+
+=item wildcard
+
+The wildcard token "*" allows for partial matches. The token MUST appear at the end of the
+rule. 
+
+  'posts/list/*'
+
+By default, the C<dispatch_url_remainder> param is set to the remainder of the URL
+matched by the *. The name of the param can be changed by setting "*" argument in the 
+L<ARG LIST>.
+
+  'posts/list/*' => { '*' => 'post_list_filter' }
+
+=item method
+
+You can also dispatch based on HTTP method. This is similar to using L<auto_rest> but
+offers more fine grained control. You include the method (case insensitive) at the end of 
+the rule and enclose it in square brackets.
+
+  ':app/news[post]'   => { rm => 'add_news'    },
+  ':app/news[get]'    => { rm => 'news'        },
+  ':app/news[delete]' => { rm => 'delete_news' },
 
 =back
 
@@ -1006,7 +1034,7 @@ Perhaps it's specific to using C<RewriteBase>. Refactorings welcome!
   RewriteCond %{REQUEST_FILENAME} !-d
 
   # Otherwise, pass everything through to the dispatcher
-  RewriteRule ^(.*)$ /cgi-bin/dispatch.cgi$1 [L,QSA]
+  RewriteRule ^(.*)$ /cgi-bin/dispatch.cgi/$1 [L,QSA]
 
 =head2 More complex rewrite: dispatching "/" and multiple developers
 
@@ -1045,7 +1073,7 @@ user blocks.
     RewriteCond %{REQUEST_FILENAME} !-d
 
      # Otherwise, pass everything through to the dispatcher
-    RewriteRule ^(.*)$ /~mark/cgi-bin/dispatch.cgi$1 [L,QSA]
+    RewriteRule ^(.*)$ /~mark/cgi-bin/dispatch.cgi/$1 [L,QSA]
 
     # These examples may also be helpful, but are unrelated to dispatching.
     SetEnv DEVMODE mark
@@ -1060,33 +1088,14 @@ While Dispatch tries to be flexible, it won't be able to do everything that peop
 we've made it flexible enough so that if it doesn't do I<The Right Thing> you can easily subclass
 it.
 
-=head2 PROTECTED METHODS
+=cut
 
-The following methods are intended to be overridden by subclasses if necessary. They are not
-part of the public API since end users will never touch them. However, to ensure that your
-subclass of Dispatch does not break with a new release, they are documented here and are considered
-to be part of the API and will not be changed without very good reasons.
-
-=over
-
-=item _get_cache
-
-This method will return the arguments that would have been determined from parsing the PATH_INFO
-(and possibly using the Dispatch Table), but that were stored in the cache from a previous run.
-It receives the URL of the request to use as the key:
-
-    my $args = $self->_get_cache($url)
-
-=item _set_cache
-
-This method sets the arguments determined form parsing the PATH_INFO to be used for this URL
-for future requests to the same URL.
-It receives the URL of the request (to be used as the key to the cache) and a reference to
-the data being stored:
-
-    $self->_set_cache($url, $args);
-
-=back
+#=head2 PROTECTED METHODS
+#
+#The following methods are intended to be overridden by subclasses if necessary. They are not
+#part of the public API since end users will never touch them. However, to ensure that your
+#subclass of Dispatch does not break with a new release, they are documented here and are considered
+#to be part of the API and will not be changed without very good reasons.
 
 =head1 AUTHOR
 

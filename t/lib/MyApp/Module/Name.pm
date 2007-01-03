@@ -9,6 +9,7 @@ sub setup {
         rm2
         rm3
         rm4
+        rm5
         local_args_to_new
     /]); 
 }
@@ -36,6 +37,20 @@ sub rm3 {
 sub rm4 {
     my $self = shift;
     return $self->rm3;
+}
+
+sub rm5 {
+  my $self = shift;
+
+  my $return="";
+
+  if( $self->param('the_rest') ) {
+    $return = 'the_rest=' . $self->param('the_rest');
+  }
+  else {
+    $return = 'dispatch_url_remainder=' . $self->param('dispatch_url_remainder');
+  }
+  return "MyApp::Module::Name->rm5 $return";
 }
 
 sub local_args_to_new {

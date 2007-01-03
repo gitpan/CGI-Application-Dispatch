@@ -8,6 +8,8 @@ sub dispatch_args {
             'foo/bar'             => { app => 'Name', rm => 'rm2', prefix => 'MyApp::Module' },
             ':app/bar/:my_param'  => { rm => 'rm3' },
             ':app/foo/:my_param?' => { rm => 'rm3' },
+            ':app/baz/*'          => { rm => 'rm5' },
+            ':app/bap/*'          => { rm => 'rm5', '*' => 'the_rest' },
             ':app/:rm/:my_param'  => { },
             ':app/:rm'            => { },
             ':app'                => { },

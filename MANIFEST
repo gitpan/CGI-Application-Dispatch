@@ -11,7 +11,10 @@ t/conf/modperl_extra.pl
 t/handler.t
 t/lib/Module/Name.pm
 t/lib/MyApp/Dispatch.pm
+t/lib/MyApp/DispatchRest.pm
 t/lib/MyApp/DispatchTable.pm
 t/lib/MyApp/Module/Bad.pm
 t/lib/MyApp/Module/Name.pm
+t/lib/MyApp/Module/Rest.pm
+t/TEST
 TODO
