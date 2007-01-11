@@ -3,6 +3,7 @@ use Test::LongString max => 500;
 use IO::Scalar;
 use strict;
 use warnings;
+use lib 't/lib';
 plan(tests => 27);
 
 # 1..5

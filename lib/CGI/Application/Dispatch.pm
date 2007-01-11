@@ -4,7 +4,7 @@ use warnings;
 use Carp qw(carp cluck);
 use Exception::Class::TryCatch qw(catch);
 
-our $VERSION = '2.10_01';
+our $VERSION = '2.10_02';
 our $DEBUG = 0;
 
 BEGIN {
@@ -1113,6 +1113,16 @@ L<http://www.cgi-app.org/>
 =head1 CONTRIBUTORS
 
 =over
+
+=item * Shawn Sorichetti
+
+=item * Timothy Appnel
+
+=item * dsteinbrunner
+
+=item * ZACKSE
+
+=item * Stew Heckenberg
 
 =item * Drew Taylor <drew@drewtaylor.com>
 

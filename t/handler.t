@@ -1,11 +1,23 @@
 use strict;
-use warnings FATAL => 'all';
-use Apache::Test qw(have_lwp need_module :withtestmore);
-use Apache::TestRequest qw(GET POST);
-use Apache::TestUtil qw(t_cmp);
+use warnings;
 use Test::More;
 
-plan tests => 61, need_module 'Apache::TestMB', have_lwp();
+BEGIN {
+    eval { require Apache::Test };
+    if( $@ ) {
+        plan(skip_all =>'Apache::Test is not installed');
+    } else {
+        require Apache::Test;
+        Apache::Test->import(qw(have_lwp need_module :withtestmore));
+        require Apache::TestRequest;
+        Apache::TestRequest->import(qw(GET POST));
+        require Apache::TestUtil;
+        Apache::TestUtil->import(qw(t_cmp));
+        plan tests => 61, Apache::Test::need_module('Apache::TestMB'), Apache::Test::have_lwp();
+    }
+}
+
+
 my $response;
 my $content;
 

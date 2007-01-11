@@ -13,7 +13,7 @@ my $build = $build_pkg->new (
             'Exception::Class::TryCatch' => 0,
         },
         build_requires      => {
-            'Apache::Test'      => '1.16',
+#            'Apache::Test'      => '1.16',
             'Test::LongString'  => 0,
         },
         module_name         => 'CGI::Application::Dispatch',

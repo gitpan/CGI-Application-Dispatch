@@ -1,6 +1,6 @@
 ---
 name: CGI-Application-Dispatch
-version: 2.10_01
+version: 2.10_02
 author:
   - 'Michael Peters <mpeters@plusthree.com>'
 abstract: Dispatch requests to CGI::Application based objects
@@ -14,12 +14,11 @@ requires:
   Test::More: 0
   perl: 5.6.0
 build_requires:
-  Apache::Test: 1.16
   Test::LongString: 0
 provides:
   CGI::Application::Dispatch:
     file: lib/CGI/Application/Dispatch.pm
-    version: 2.10_01
+    version: 2.10_02
   CGI::Application::Dispatch::Regexp:
     file: lib/CGI/Application/Dispatch/Regexp.pm
 generated_by: Module::Build version 0.2805
