@@ -4,24 +4,21 @@ use warnings;
 use Carp qw(carp cluck);
 use Exception::Class::TryCatch qw(catch);
 
-our $VERSION = '2.10';
-our $DEBUG = 0;
+our $VERSION = '2.11';
+our $DEBUG   = 0;
 
 BEGIN {
-    use constant IS_MODPERL  => exists( $ENV{MOD_PERL} );
-    use constant IS_MODPERL2 => (
-        IS_MODPERL()
-        and exists $ENV{MOD_PERL_API_VERSION} 
-        and $ENV{MOD_PERL_API_VERSION} == 2
-    );
+    use constant IS_MODPERL => exists($ENV{MOD_PERL});
+    use constant IS_MODPERL2 =>
+      (IS_MODPERL() and exists $ENV{MOD_PERL_API_VERSION} and $ENV{MOD_PERL_API_VERSION} == 2);
 
-    if (IS_MODPERL2() ) {
+    if(IS_MODPERL2()) {
         require Apache2::RequestUtil;
         require Apache2::RequestRec;
         require APR::Table;
         require Apache2::Const;
         Apache2::Const->import(qw(OK SERVER_ERROR HTTP_BAD_REQUEST NOT_FOUND REDIRECT));
-    } elsif (IS_MODPERL()) {
+    } elsif(IS_MODPERL()) {
         require Apache::Constants;
         Apache::Constants->import(qw(OK SERVER_ERROR BAD_REQUEST NOT_FOUND REDIRECT));
     }
@@ -173,17 +170,57 @@ a whole section exists on it's use. Please see the L<DISPATCH TABLE> section.
 
 =item debug
 
-Set to a true value to send debugging output for this module to STDERR. Off by default. 
+Set to a true value to send debugging output for this module to STDERR. Off by default.
 
-=item not_found
+=item error_document
 
-This is a URI to which the application will be redirected if the incoming request's
-C<PATH_INFO> does not match anything in the L<DISPATCH TABLE>. This will also be used
-if there was a match, but the module could not be loaded, or the run mode did not
-exist.
+This string is similar to Apache ErrorDocument directive. If this value is not
+present, then Dispatch will return a NOT FOUND error either to the browser with
+simple hardcoded message (under CGI) or to Apache (under mod_perl).
 
-If this value is not present, then Dispatch will return a NOT FOUND error either to the 
-browser (under CGI) or to Apache (under mod_perl).
+This value can be one of the following:
+
+B<A string with error message>
+- if it starts with a single double-quote character (C<">). This double-quote
+character will be trimmed from final output.
+
+B<A file with content of error document>
+- if it starts with greater-than sign (C<<>). First character will be excluded
+as well. Path of this file should be relative to server DOCUMENT_ROOT.
+
+B<A URI to which the application will be redirected> - if no leading C<"> or
+C<<> will be found.
+
+Custom messages will be displayed I<in non mod_perl enviroment only>. (Under
+mod_perl, please use ErrorDocument directive in Apache configuration files.)
+This value can contain C<%s> placeholder for L<sprintf> Perl function. This
+placeholder will be replaced with numeric HTTP error code. Currently
+CGI::Application::Dispatch uses three HTTP errors:
+
+B<400 Bad Request>
+- If there are invalid characters in module name (parameter :app) or
+runmode name (parameter :rm).
+
+B<404 Not Found>
+- When PATH_INFO does not match anything in the L<DISPATCH TABLE>,
+or module could not be found in @INC, or run mode did not exist.
+
+B<500 Internal Server Error>
+- If application error occurs.
+
+Examples of using error_document (assume error 404 have been returned):
+
+    # return in browser 'Opss... HTTP Error #404'
+    error_document => '"Opss... HTTP Error #%s'
+
+    # return contents of file $ENV{DOCUMENT_ROOT}/errors/error404.html
+    error_document => '</errors/error%s.html'
+
+    # internal redirect to /errors/error404.html
+    error_document => '/errors/error%s.html'
+
+    # external redirect to http://host.domain/cgi-bin/errors.cgi?error=404
+    error_document => 'http://host.domain/cgi-bin/errors.cgi?error=%s'
 
 =item auto_rest
 
@@ -209,34 +246,35 @@ sub dispatch {
     # merge dispatch_args() and %args with %args taking precendence
     my $dispatch_args = $self->dispatch_args(\%args);
     foreach my $arg (keys %$dispatch_args) {
+
         # args_to_new should be merged
-        if( $arg eq 'args_to_new' ) {
+        if($arg eq 'args_to_new') {
             $args{args_to_new} ||= {};
 
             # merge the PARAMS hash
-            if( $dispatch_args->{args_to_new}->{PARAMS} ) {
+            if($dispatch_args->{args_to_new}->{PARAMS}) {
+
                 # merge the hashes
                 $args{args_to_new}->{PARAMS} = {
                     %{$dispatch_args->{args_to_new}->{PARAMS}},
-                    %{ $args{args_to_new}->{PARAMS} || {} },
-                }
+                    %{$args{args_to_new}->{PARAMS} || {}},
+                };
             }
 
             # combine any TMPL_PATHs
-            if( $dispatch_args->{args_to_new}->{TMPL_PATH} ) {
+            if($dispatch_args->{args_to_new}->{TMPL_PATH}) {
+
                 # make sure the orginial is an array ref
-                if( $args{args_to_new}->{TMPL_PATH} ) {
-                    if( ! ref $args{args_to_new}->{TMPL_PATH} ) {
-                        $args{args_to_new}->{TMPL_PATH} = [
-                            $args{args_to_new}->{TMPL_PATH}
-                        ]; 
+                if($args{args_to_new}->{TMPL_PATH}) {
+                    if(!ref $args{args_to_new}->{TMPL_PATH}) {
+                        $args{args_to_new}->{TMPL_PATH} = [$args{args_to_new}->{TMPL_PATH}];
                     }
                 } else {
                     $args{args_to_new}->{TMPL_PATH} = [];
                 }
 
                 # now add the rest to the end
-                if( ref $dispatch_args->{args_to_new}->{TMPL_PATH} ) {
+                if(ref $dispatch_args->{args_to_new}->{TMPL_PATH}) {
                     push(
                         @{$args{args_to_new}->{TMPL_PATH}},
                         @{$dispatch_args->{args_to_new}->{TMPL_PATH}},
@@ -250,11 +288,9 @@ sub dispatch {
             }
 
             # now merge the args_to_new hashes
-            $args{args_to_new} = {
-                %{$dispatch_args->{args_to_new}},
-                %{$args{args_to_new}},
-            };
+            $args{args_to_new} = {%{$dispatch_args->{args_to_new}}, %{$args{args_to_new}},};
         } else {
+
             # anything else should override
             $args{$arg} = $dispatch_args->{$arg} unless exists $args{$arg};
         }
@@ -263,51 +299,59 @@ sub dispatch {
     $DEBUG = $args{debug} ? 1 : 0;
 
     # check for extra args (for backwards compatibility)
-    foreach (keys %args) {
-        next if(
-            $_ eq 'prefix'       or
-            $_ eq 'default'      or
-            $_ eq 'debug'        or
-            $_ eq 'rm'           or
-            $_ eq 'args_to_new'  or
-            $_ eq 'table'        or
-            $_ eq 'auto_rest'    or
-            $_ eq 'auto_rest_lc' or
-            $_ eq 'not_found'
-        );
+    foreach(keys %args) {
+        next
+          if(  $_ eq 'prefix'
+            or $_ eq 'default'
+            or $_ eq 'debug'
+            or $_ eq 'rm'
+            or $_ eq 'args_to_new'
+            or $_ eq 'table'
+            or $_ eq 'auto_rest'
+            or $_ eq 'auto_rest_lc'
+            or $_ eq 'not_found'
+            or $_ eq 'error_document');
         carp "Passing extra args ('$_') to dispatch() is deprecated! Please use 'args_to_new'";
         $args{args_to_new}->{$_} = delete $args{$_};
     }
-    %args = map { lc $_ => $args{$_} } keys %args;  # lc for backwards compatability
+
+    # TODO: delete this block some time later
+    if(exists $args{not_found}) {
+        carp 'Passing not_found to dispatch() is deprecated! Please use error_document instead';
+        $args{error_document} = delete($args{not_found})
+          unless exists($args{error_document});
+    }
+
+    %args = map { lc $_ => $args{$_} } keys %args;    # lc for backwards compatability
 
     # get the PATH_INFO
     my $path_info = $ENV{PATH_INFO};
-    # use the 'default' if we need to
-    $path_info = $args{default} || '' if( !$path_info || $path_info eq '/' );
-    # make sure they all start and end with a '/', to correspond with the RE we'll make
-    $path_info = "/$path_info" unless( index($path_info, '/') == 0 );
-    $path_info = "$path_info/" unless( substr($path_info, -1) eq '/');
 
-    my ( $module, $rm, $local_prefix, $local_args_to_new );
+    # use the 'default' if we need to
+    $path_info = $args{default} || '' if(!$path_info || $path_info eq '/');
+
+    # make sure they all start and end with a '/', to correspond with the RE we'll make
+    $path_info = "/$path_info" unless(index($path_info, '/') == 0);
+    $path_info = "$path_info/" unless(substr($path_info, -1) eq '/');
+
+    my ($module, $rm, $local_prefix, $local_args_to_new);
 
     # take args from path
     my $named_args;
     eval {
-        $named_args = $self->_parse_path( $path_info, $args{table} )
-		    or throw_not_found(
-                "Resource not found " . ($ENV{REQUEST_URI} ? "for '$ENV{REQUEST_URI}'" : '')
-            );
-    }; 
+        $named_args = $self->_parse_path($path_info, $args{table})
+          or throw_not_found(
+            "Resource not found " . ($ENV{REQUEST_URI} ? "for '$ENV{REQUEST_URI}'" : ''));
+    };
     my $e = catch();
-    return $self->http_error($e, $args{not_found}) if( $e );
+    return $self->http_error($e, $args{error_document}) if($e);
 
-    if ($DEBUG) {
+    if($DEBUG) {
         require Data::Dumper;
-        warn "[Dispatch] Named args from match: "
-          . Data::Dumper::Dumper($named_args) . "\n";
+        warn "[Dispatch] Named args from match: " . Data::Dumper::Dumper($named_args) . "\n";
     }
 
-    if (exists($named_args->{PARAMS}) || exists($named_args->{TMPL_PATH})) {
+    if(exists($named_args->{PARAMS}) || exists($named_args->{TMPL_PATH})) {
         carp "PARAMS and TMPL_PATH are not allowed here. Did you mean to use args_to_new?";
         throw_error("PARAMS and TMPL_PATH not allowed");
     }
@@ -315,192 +359,252 @@ sub dispatch {
     # eval and catch any exceptions that might be thrown
     my ($output, @final_dispatch_args);
     eval {
-        ( $module, $local_prefix, $rm, $local_args_to_new ) =
+        ($module, $local_prefix, $rm, $local_args_to_new) =
           delete @{$named_args}{qw(app prefix rm args_to_new)};
 
         # If another name for dispatch_url_remainder has been set move
         # the value to the requested name
         if($$named_args{'*'}) {
-          $$named_args{$$named_args{'*'}} = $$named_args{'dispatch_url_remainder'};
-          delete $$named_args{'*'};
-          delete $$named_args{'dispatch_url_remainder'};
+            $$named_args{$$named_args{'*'}} = $$named_args{'dispatch_url_remainder'};
+            delete $$named_args{'*'};
+            delete $$named_args{'dispatch_url_remainder'};
         }
 
         $module or throw_error("App not defined");
         $module = $self->translate_module_name($module);
 
-        $local_prefix ||=  $args{prefix};
-        $module = $local_prefix . '::' . $module if( $local_prefix );
+        $local_prefix ||= $args{prefix};
+        $module = $local_prefix . '::' . $module if($local_prefix);
 
         $local_args_to_new ||= $args{args_to_new};
 
         # add the rest of the named_args to PARAMS
-        @{ $local_args_to_new->{PARAMS} }{ keys %$named_args } = values %$named_args;
+        @{$local_args_to_new->{PARAMS}}{keys %$named_args} = values %$named_args;
 
-        my $auto_rest = defined $named_args->{auto_rest} ? $named_args->{auto_rest} : $args{auto_rest};
-        if( $auto_rest ) {
-            my $method_lc = defined $named_args->{auto_rest_lc} ? $named_args->{auto_rest_lc} : $args{auto_rest_lc};
+        my $auto_rest =
+          defined $named_args->{auto_rest} ? $named_args->{auto_rest} : $args{auto_rest};
+        if($auto_rest) {
+            my $method_lc =
+              defined $named_args->{auto_rest_lc}
+              ? $named_args->{auto_rest_lc}
+              : $args{auto_rest_lc};
             my $http_method = $self->_http_method;
             $http_method = lc $http_method if $method_lc;
-            $rm .= "_$http_method"; 
+            $rm .= "_$http_method";
         }
 
         # load and run the module
         @final_dispatch_args = ($module, $rm, $local_args_to_new);
         $self->require_module($module);
-        $output = $self->_run_app($module,$rm,$local_args_to_new);
+        $output = $self->_run_app($module, $rm, $local_args_to_new);
     };
     $e = catch();
-    return $self->http_error($e, $args{not_found}) if( $e );
+    return $self->http_error($e, $args{error_document}) if($e);
 
     return $output;
 }
 
-
-# stolen from http_protocol.c in Apache sources
-# we don't actually use anything other than 200, 307, 400, 404 and 500
-my %status_lines = (
-#    100 => 'Continue',
-#    101 => 'Switching Protocols',
-#    102 => 'Processing',
-    200 => 'OK',
-#    201 => 'Created',
-#    202 => 'Accepted',
-#    203 => 'Non-Authoritative Information',
-#    204 => 'No Content',
-#    205 => 'Reset Content',
-#    206 => 'Partial Content',
-#    207 => 'Multi-Status',
-#    300 => 'Multiple Choices',
-#    301 => 'Moved Permanently',
-#    302 => 'Found',
-#    303 => 'See Other',
-#    304 => 'Not Modified',
-#    305 => 'Use Proxy',
-    307 => 'Temporary Redirect',
-    400 => 'Bad Request',
-#    401 => 'Authorization Required',
-#    402 => 'Payment Required',
-#    403 => 'Forbidden',
-    404 => 'Not Found',
-#    405 => 'Method Not Allowed',
-#    406 => 'Not Acceptable',
-#    407 => 'Proxy Authentication Required',
-#    408 => 'Request Time-out',
-#    409 => 'Conflict',
-#    410 => 'Gone',
-#    411 => 'Length Required',
-#    412 => 'Precondition Failed',
-#    413 => 'Request Entity Too Large',
-#    414 => 'Request-URI Too Large',
-#    415 => 'Unsupported Media Type',
-#    416 => 'Requested Range Not Satisfiable',
-#    417 => 'Expectation Failed',
-#    422 => 'Unprocessable Entity',
-#    423 => 'Locked',
-#    424 => 'Failed Dependency',
-    500 => 'Internal Server Error',
-#    501 => 'Method Not Implemented',
-#    502 => 'Bad Gateway',
-#    503 => 'Service Temporarily Unavailable',
-#    504 => 'Gateway Time-out',
-#    505 => 'HTTP Version Not Supported',
-#    506 => 'Variant Also Negotiates',
-#    507 => 'Insufficient Storage',
-#    510 => 'Not Extended',
-);
-
 sub http_error {
-    my ($self, $e, $url) = @_;
+    my ($self, $e, $errdoc) = @_;
 
-    warn "[Dispatch] ERROR: '" . $e->error 
-        . ( $ENV{REQUEST_URI} ? "' for request '$ENV{REQUEST_URI}'" : "' ") . "\n";
-    my $redirect;
-    if( $e->isa('CGI::Application::Dispatch::NOT_FOUND') && $url ) {
-        $redirect = 1;
-        warn "[Dispatch] Redirection for NOT FOUND to $url" if( $DEBUG );
-    }
-    my $errno;
-    if( $e->isa('CGI::Application::Dispatch::Exception') ) {
-        $errno = $e->description;
-    } else {
-        $errno = 500;
+    warn '[Dispatch] ERROR'
+      . ($ENV{REQUEST_URI} ? "' for request '$ENV{REQUEST_URI}': " : ': ')
+      . $e->error . "\n";
+
+    my $errno =
+        $e->isa('CGI::Application::Dispatch::Exception')
+      ? $e->description
+      : 500;
+
+    my ($url, $output);
+
+    if($errdoc) {
+        my $str = sprintf($errdoc, $errno);
+        if(IS_MODPERL) {    #compile out all other stuff
+            $url = $str;    # no messages, please
+        } elsif(index($str, '"') == 0) {    # Error message
+            $output = substr($str, 1);
+        } elsif(index($str, '<') == 0) {    # Local file
+                                            # Is it secure?
+            require File::Spec;
+            $str = File::Spec->catdir($ENV{DOCUMENT_ROOT}, substr($str, 1));
+            local *FH;
+            if(-f $str && open(FH, '<', $str)) {
+                local $/ = undef;
+                $output = <FH>;
+                close FH;
+            } else {
+                warn "[Dispatch] Error opening error document '$str'.\n";
+            }
+        } else {                            # Last case is url
+            $url = $str;
+        }
+
+        if($DEBUG) {
+            warn "[Dispatch] Redirection for HTTP error #$errno to $url\n"
+              if $url;
+            warn "[Dispatch] Displaying message for HTTP error #$errno\n"
+              if $output;
+        }
+
     }
 
     # if we're under mod_perl
-    if (IS_MODPERL) {
+    if(IS_MODPERL) {
         my $r = $self->_r;
-        # if we just want to redirect
-        if( $redirect ) {
-            $r->status( $errno );
-            $r->headers_out->{'Location'} = $url; 
-        } else {
-            # next line is for Apache::Registry
-            $r->status($errno);
-        }
-        return '';
-    # else print the HTTP stuff ourselves
-    } else {
-        $errno = 500 if( !exists $status_lines{$errno} );
-        my $output = "HTTP/1.0 Status: $errno $status_lines{$errno}\n";
-        $output .= "Location: $url\n" if( $redirect );
-        $output .= "Content-type: text/html\n\n";
+        $r->status($errno);
 
-        # TODO: possibly provide more feedback in a way that is XSS safe.
-        # (I'm not sure that passing through the raw ENV variable directly is safe.)
-        # <P>We tried: $ENV{REQUEST_URI}</P></BODY></HTML>";
-        $output .= qq(
-            <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">
-            <HTML><HEAD>
-            <TITLE>$errno $status_lines{$errno}</TITLE>
-            </HEAD><BODY>
-            <H1>$status_lines{$errno}</H1>
-            <P><ADDRESS>)
-            . ( $ENV{SERVER_ADMIN} ? "($ENV{SERVER_ADMIN})" : '') 
-            . qq(</ADDRESS></P>
-            <HR>)
-            . ( $ENV{SERVER_SIGNATURE} || '' )
-            . qq(</BODY></HTML>);
-        # Send output to browser (unless we're in serious debug mode!)
-        if (not $ENV{CGI_APP_RETURN_ONLY}) {
-            print $output;
+        # if we just want to redirect
+        $r->headers_out->{'Location'} = $url if $url;
+        return '';
+    } else {    # else print the HTTP stuff ourselves
+
+        # stolen from http_protocol.c in Apache sources
+        # we don't actually use anything other than 200, 307, 400, 404 and 500
+
+        my %status_lines = (
+
+            #    100 => 'Continue',
+            #    101 => 'Switching Protocols',
+            #    102 => 'Processing',
+            200 => 'OK',
+
+            #    201 => 'Created',
+            #    202 => 'Accepted',
+            #    203 => 'Non-Authoritative Information',
+            #    204 => 'No Content',
+            #    205 => 'Reset Content',
+            #    206 => 'Partial Content',
+            #    207 => 'Multi-Status',
+            #    300 => 'Multiple Choices',
+            #    301 => 'Moved Permanently',
+            #    302 => 'Found',
+            #    303 => 'See Other',
+            #    304 => 'Not Modified',
+            #    305 => 'Use Proxy',
+            307 => 'Temporary Redirect',
+            400 => 'Bad Request',
+
+            #    401 => 'Authorization Required',
+            #    402 => 'Payment Required',
+            #    403 => 'Forbidden',
+            404 => 'Not Found',
+
+            #    405 => 'Method Not Allowed',
+            #    406 => 'Not Acceptable',
+            #    407 => 'Proxy Authentication Required',
+            #    408 => 'Request Time-out',
+            #    409 => 'Conflict',
+            #    410 => 'Gone',
+            #    411 => 'Length Required',
+            #    412 => 'Precondition Failed',
+            #    413 => 'Request Entity Too Large',
+            #    414 => 'Request-URI Too Large',
+            #    415 => 'Unsupported Media Type',
+            #    416 => 'Requested Range Not Satisfiable',
+            #    417 => 'Expectation Failed',
+            #    422 => 'Unprocessable Entity',
+            #    423 => 'Locked',
+            #    424 => 'Failed Dependency',
+            500 => 'Internal Server Error',
+
+            #    501 => 'Method Not Implemented',
+            #    502 => 'Bad Gateway',
+            #    503 => 'Service Temporarily Unavailable',
+            #    504 => 'Gateway Time-out',
+            #    505 => 'HTTP Version Not Supported',
+            #    506 => 'Variant Also Negotiates',
+            #    507 => 'Insufficient Storage',
+            #    510 => 'Not Extended',
+        );
+
+        $errno = 500 if(!exists $status_lines{$errno});
+
+        if($url) {
+
+            # somewhat mailformed header, no errors in access.log, but browsers
+            # display contents of $url document and old URI in address bar.
+            $output = "HTTP/1.0 $errno $status_lines{$errno}\n";
+            $output .= "Location: $url\n\n";
+        } else {
+
+            unless($output) {
+
+                # TODO: possibly provide more feedback in a way that is XSS safe.
+                # (I'm not sure that passing through the raw ENV variable directly is safe.)
+                # <P>We tried: $ENV{REQUEST_URI}</P></BODY></HTML>";
+                $output = qq(
+                <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">
+                <HTML><HEAD>
+                <TITLE>$errno $status_lines{$errno}</TITLE>
+                </HEAD><BODY>)
+                  . (
+                    $DEBUG
+                    ? '<h1>' . __PACKAGE__ . ' error!</h1>'
+                    : ''
+                  )
+                  . qq(<H1>$status_lines{$errno}</H1>
+                <P><ADDRESS>)
+                  . ($ENV{SERVER_ADMIN} ? "($ENV{SERVER_ADMIN})" : '') . qq(</ADDRESS></P>
+                <HR>)
+                  . ($ENV{SERVER_SIGNATURE} || '') . qq(</BODY></HTML>);
+            }
+
+            # Apache will report $errno in access.log
+            my $header .= "Status: $errno $status_lines{$errno}\n";
+
+            # try to guess, what a crap we get here
+            $header .=
+              $output =~ /<html/i
+              ? "Content-type: text/html\n\n"
+              : "Content-type: text/plain\n\n";
+
+            # Workaround for IE error document 512 byte size "feature"
+            $output .= ' ' x (520 - length($output))
+              if(length($output) < 520);
+
+            $output = $header . $output;
         }
+
+        # Send output to browser (unless we're in serious debug mode!)
+        print $output unless $ENV{CGI_APP_RETURN_ONLY};
 
         return $output;
     }
 }
 
-
 # protected method - designed to be used by sub classes, not by end users
 sub _parse_path {
-    my ( $self, $path, $table ) = @_;
+    my ($self, $path, $table) = @_;
 
     # get the module name from the table
     return unless defined($path);
 
-    unless (ref($table) eq 'ARRAY' ) {
+    unless(ref($table) eq 'ARRAY') {
         warn "[Dispatch] Invalid or no dispatch table!\n";
         return;
     }
 
     # look at each rule and stop when we get a match
-    for ( my $i = 0 ; $i < scalar(@$table) ; $i += 2 ) {
+    for(my $i = 0 ; $i < scalar(@$table) ; $i += 2) {
 
         my $rule = $table->[$i];
 
         # are we trying to dispatch based on HTTP_METHOD?
         my $http_method_regex = qr/\[([^\]]+)\]$/;
-        if( $rule =~ /$http_method_regex/ ) {
+        if($rule =~ /$http_method_regex/) {
             my $http_method = $1;
+
             # go ahead to the next rule
             next unless lc($1) eq lc($self->_http_method);
+
             # remove the method portion from the rule
             $rule =~ s/$http_method_regex//;
         }
 
         # make sure they start and end with a '/' to match how PATH_INFO is formatted
-        $rule = "/$rule" unless ( index( $rule, '/' ) == 0 );
-        $rule = "$rule/" if ( substr( $rule, -1 ) ne '/' );
+        $rule = "/$rule" unless(index($rule, '/') == 0);
+        $rule = "$rule/" if(substr($rule, -1) ne '/');
 
         my @names = ();
 
@@ -521,20 +625,21 @@ sub _parse_path {
         # '/*/' will become '/(.*)/$' the end / is added to the end of
         # both $rule and $path elsewhere
         if($rule =~ m{/\*/$}) {
-          $rule =~ s{/\*/$}{/(.*)/\$};
-          push(@names,'dispatch_url_remainder');
-        } 
+            $rule =~ s{/\*/$}{/(.*)/\$};
+            push(@names, 'dispatch_url_remainder');
+        }
 
-        warn "[Dispatch] Trying to match '${path}' against rule '$table->[$i]' using regex '${rule}'\n"
-			if $DEBUG;
+        warn
+          "[Dispatch] Trying to match '${path}' against rule '$table->[$i]' using regex '${rule}'\n"
+          if $DEBUG;
 
         # if we found a match, then run with it
-        if ( my @values = ( $path =~ m#^$rule$# ) ) {
+        if(my @values = ($path =~ m#^$rule$#)) {
 
             warn "[Dispatch] Matched!\n" if $DEBUG;
 
-            my %named_args = %{ $table->[ ++$i ] };
-            @named_args{@names} = @values  if @names;
+            my %named_args = %{$table->[++$i]};
+            @named_args{@names} = @values if @names;
 
             return \%named_args;
         }
@@ -543,34 +648,44 @@ sub _parse_path {
     return;
 }
 
-sub _http_method { IS_MODPERL ? shift->_r->method : $ENV{HTTP_REQUEST_METHOD}; }
+sub _http_method {
+    IS_MODPERL ? shift->_r->method : ($ENV{HTTP_REQUEST_METHOD} || $ENV{REQUEST_METHOD});
+}
 
-sub _r { IS_MODPERL2 ? Apache2::RequestUtil->request : Apache->request; }
+sub _r { IS_MODPERL2 ? Apache2::RequestUtil->request: Apache->request; }
 
 sub _run_app {
-    my ( $self, $module, $rm, $args ) = @_;
+    my ($self, $module, $rm, $args) = @_;
 
-    if ($DEBUG) {
+    if($DEBUG) {
         require Data::Dumper;
-        warn "[Dispatch] Final args to pass to new(): "
-          . Data::Dumper::Dumper($args) . "\n";
+        warn "[Dispatch] Final args to pass to new(): " . Data::Dumper::Dumper($args) . "\n";
+    }
+
+    if($rm) {
+
+        # check runmode name
+        ($rm) = ($rm =~ /^([a-zA-Z_][\w']+)$/);
+        throw_bad_request("Invalid characters in runmode name") unless $rm;
     }
 
     # now create and run then application object
-    warn "[Dispatch] creating instance of $module\n" if( $DEBUG );
+    warn "[Dispatch] creating instance of $module\n" if($DEBUG);
 
     my $output;
     eval {
         my $app = ref($args) eq 'HASH' ? $module->new($args) : $module->new();
-        $app->mode_param( sub { return $rm } ) if ($rm);
+        $app->mode_param(sub { return $rm }) if($rm);
         $output = $app->run();
     };
 
-    if ($@) {
+    if($@) {
+
         # catch invalid run-mode stuff
-        if ( $@ =~ /No such run mode/ ) {
-            throw_not_found("RM '$rm' not found") 
-        # otherwise, just pass it up the chain
+        if($@ =~ /No such run mode/) {
+            throw_not_found("RM '$rm' not found")
+
+              # otherwise, just pass it up the chain
         } else {
             die $@;
         }
@@ -649,29 +764,31 @@ sub handler : method {
     # setup our args to dispatch()
     my %args;
     my $config_args = $r->dir_config();
-    foreach my $var qw(DEFAULT PREFIX) {
+    foreach my $var qw(DEFAULT PREFIX ERROR_DOCUMENT) {
         my $dir_var = "CGIAPP_DISPATCH_$var";
         $args{lc($var)} = $config_args->{$dir_var}
-            if( $config_args->{$dir_var} );
+          if($config_args->{$dir_var});
     }
+
     # add $r to the args_to_new's PARAMS
     $args{args_to_new}->{PARAMS}->{r} = $r;
 
     # set debug if we need to
-    $DEBUG = 1 if( $config_args->{CGIAPP_DISPATCH_DEBUG} );
-    if( $DEBUG ) {
+    $DEBUG = 1 if($config_args->{CGIAPP_DISPATCH_DEBUG});
+    if($DEBUG) {
         require Data::Dumper;
-        warn "[Dispatch] Calling dispatch() with the following arguments: " . Data::Dumper::Dumper(\%args) . "\n";
+        warn "[Dispatch] Calling dispatch() with the following arguments: "
+          . Data::Dumper::Dumper(\%args) . "\n";
     }
 
     $self->dispatch(%args);
 
-    if( $r->status == 404 ) {
+    if($r->status == 404) {
         return NOT_FOUND();
-    } elsif( $r->status == 500 ) {
+    } elsif($r->status == 500) {
         return SERVER_ERROR();
-    } elsif( $r->status == 400 ) {
-        return BAD_REQUEST();
+    } elsif($r->status == 400) {
+        return IS_MODPERL2() ? HTTP_BAD_REQUEST() : BAD_REQUEST();
     } else {
         return OK();
     }
@@ -702,12 +819,12 @@ L<dispatch>.
 sub dispatch_args {
     my ($self, $args) = @_;
     return {
-        default     => ( $args->{default} || ''),
-        prefix      => ( $args->{prefix}  || ''),
-        args_to_new => ( $args->{args_to_new} || {} ),
+        default     => ($args->{default}     || ''),
+        prefix      => ($args->{prefix}      || ''),
+        args_to_new => ($args->{args_to_new} || {}),
         table       => [
-            ':app'      => {},
-            ':app/:rm'  => {},
+            ':app'     => {},
+            ':app/:rm' => {},
         ],
     };
 }
@@ -766,32 +883,30 @@ any problems requiring the named module, then we will C<croak>.
 sub require_module {
     my ($self, $module) = @_;
 
-    $module or die "STATUS: " . DISPATCH_NOT_FOUND();
+    $module or throw_not_found("Can't define module name");
 
     #untaint the module name
     ($module) = ($module =~ /^([A-Za-z][A-Za-z0-9_\-\:\']+)$/);
 
-    unless ($module) {
+    unless($module) {
         throw_bad_request("Invalid characters in module name");
     }
 
-    warn "[Dispatch] loading module $module\n" if ( $DEBUG );
+    warn "[Dispatch] loading module $module\n" if($DEBUG);
     eval "require $module";
     return unless $@;
 
     my $module_path = $module;
     $module_path =~ s/::/\//g;
 
-    if ( $@ =~ /Can't locate $module_path.pm/ ) {
+    if($@ =~ /Can't locate $module_path.pm/) {
         throw_not_found("Can't find module $module");
     } else {
         throw_error("Unable to load module '$module': $@");
     }
 }
 
-
 1;
-
 
 __END__
 
@@ -827,7 +942,7 @@ Just so we all understand what we're talking about....
 A table is an array where the elements are gouped as pairs (similar to a hash's
 key-value pairs, but as an array to preserve order). The first element of each pair
 is called a C<rule>. The second element in the pair is called the rule's C<arg list>.
-Inside a rule there are backslashes C</>. Anything set of characters between backslashes
+Inside a rule there are slashes C</>. Anything set of characters between slashes
 is called a C<token>.
 
 =head2 URL MATCHING
@@ -835,7 +950,7 @@ is called a C<token>.
 When a URL comes in, Dispatch tries to match it against each rule in the table in
 the order in which the rules are given. The first one to match wins.
 
-A rule consists of backslashes and tokens. A token can one of the following types:
+A rule consists of slashes and tokens. A token can one of the following types:
 
 =over
 
@@ -852,7 +967,7 @@ C<posts> is a literal token.
 
 Any token which begins with a colon (C<:>) is a variable token. These are simply
 wild-card place holders in the rule that will match anything in the URL that isn't
-a backslash. These variables can later be referred to by using the C<< $self->param >>
+a slash. These variables can later be referred to by using the C<< $self->param >>
 mechanism. In the rule
 
     'posts/:category'
@@ -900,12 +1015,12 @@ the application, if they existed in the URL.
 =item wildcard
 
 The wildcard token "*" allows for partial matches. The token MUST appear at the end of the
-rule. 
+rule.
 
   'posts/list/*'
 
 By default, the C<dispatch_url_remainder> param is set to the remainder of the URL
-matched by the *. The name of the param can be changed by setting "*" argument in the 
+matched by the *. The name of the param can be changed by setting "*" argument in the
 L<ARG LIST>.
 
   'posts/list/*' => { '*' => 'post_list_filter' }
@@ -913,7 +1028,7 @@ L<ARG LIST>.
 =item method
 
 You can also dispatch based on HTTP method. This is similar to using L<auto_rest> but
-offers more fine grained control. You include the method (case insensitive) at the end of 
+offers more fine grained control. You include the method (case insensitive) at the end of
 the rule and enclose it in square brackets.
 
   ':app/news[post]'   => { rm => 'add_news'    },
@@ -961,7 +1076,7 @@ L<translate_module_name> method.
 
 =head2 Getting the run mode
 
-Just like the module name is retrieved from splitting the C<PATH_INFO> on backslashes, so is the
+Just like the module name is retrieved from splitting the C<PATH_INFO> on slashes, so is the
 run mode. Only instead of using the second element of the resulting list, we use the third
 as the run mode. So, using the same example, if we have a path info of
 
@@ -1157,4 +1272,3 @@ This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.
 
 =cut
-

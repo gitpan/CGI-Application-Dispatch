@@ -1,6 +1,6 @@
 ---
 name: CGI-Application-Dispatch
-version: 2.10
+version: 2.11
 author:
   - 'Michael Peters <mpeters@plusthree.com>'
 abstract: Dispatch requests to CGI::Application based objects
@@ -18,10 +18,10 @@ build_requires:
 provides:
   CGI::Application::Dispatch:
     file: lib/CGI/Application/Dispatch.pm
-    version: 2.10
+    version: 2.11
   CGI::Application::Dispatch::Regexp:
     file: lib/CGI/Application/Dispatch/Regexp.pm
-generated_by: Module::Build version 0.2805
+generated_by: Module::Build version 0.2808
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.2.html
   version: 1.2

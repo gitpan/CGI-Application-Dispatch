@@ -54,34 +54,34 @@ L<CGI::Application>, L<CGI::Application::Dispatch>
 
 # protected method - designed to be used by sub classes, not by end users
 sub _parse_path {
-    my ( $self, $path, $table ) = @_;
+    my ($self, $path, $table) = @_;
 
     # get the module name from the table
     return unless defined($path);
 
-    unless (ref($table) eq 'ARRAY' ) {
+    unless(ref($table) eq 'ARRAY') {
         warn "Invalid or no dispatch table!\n";
         return;
     }
 
-    for ( my $i = 0 ; $i < scalar(@$table) ; $i += 2 ) {
+    for(my $i = 0 ; $i < scalar(@$table) ; $i += 2) {
 
         # translate the rule into a regular expression, but remember where the named args are
         my $rule = $table->[$i];
 
-        warn "[Dispatch::Regexp] Trying to match '$path' against rule '$table->[$i]' using regex '$rule'\n"
-            if $CGI::Application::Dispatch::DEBUG;
-
+        warn
+          "[Dispatch::Regexp] Trying to match '$path' against rule '$table->[$i]' using regex '$rule'\n"
+          if $CGI::Application::Dispatch::DEBUG;
 
         # if we found a match, then run with it
-        if ( my @values = ( $path =~ m|^$rule$| ) ) {
+        if(my @values = ($path =~ m|^$rule$|)) {
 
             warn "[Dispatch::Regexp] Matched!\n" if $CGI::Application::Dispatch::DEBUG;
 
-            my %named_args = %{ $table->[ ++$i ] };
-            my $names = delete($named_args{names});
+            my %named_args = %{$table->[++$i]};
+            my $names      = delete($named_args{names});
 
-            @named_args{@$names} = @values  if (ref($names) eq 'ARRAY');
+            @named_args{@$names} = @values if(ref($names) eq 'ARRAY');
 
             return \%named_args;
 
@@ -95,13 +95,13 @@ sub _parse_path {
 sub dispatch_args {
     my ($self, $args) = @_;
     return {
-        default     => ( $args->{default} || ''),
-        prefix      => ( $args->{prefix}  || ''),
-        args_to_new => ( $args->{args_to_new} || {} ),
+        default     => ($args->{default}     || ''),
+        prefix      => ($args->{prefix}      || ''),
+        args_to_new => ($args->{args_to_new} || {}),
 
-        table       => [
-            qr|/([^/]+)/?|          => { names => ['app']      },
-            qr|/([^/]+)/([^/]+)/?|  => { names => [qw(app rm)] },
+        table => [
+            qr|/([^/]+)/?|         => {names => ['app']},
+            qr|/([^/]+)/([^/]+)/?| => {names => [qw(app rm)]},
         ],
 
     };

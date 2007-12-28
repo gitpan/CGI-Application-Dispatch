@@ -1,12 +1,13 @@
 use Test::More;
 use Test::LongString max => 500;
-use IO::Scalar;
 use strict;
 use warnings;
 use lib 't/lib';
-plan(tests => 27);
+our $COUNT;
+plan(tests => $COUNT);
 
-# 1..5
+BEGIN { $COUNT += 5 }
+
 # make sure we can get to our modules
 require_ok('CGI::Application::Dispatch');
 require_ok('Module::Name');
@@ -23,13 +24,15 @@ my $junk;
     open SAVE_ERR, ">&STDERR";
     close STDERR;
     open STDERR, ">", \$junk
-        or warn "Could not redirect STDERR?\n";
+      or warn "Could not redirect STDERR?\n";
 
 }
 
-# 6..7
+BEGIN { $COUNT += 2 }
+
 # module name
 {
+
     # with starting '/'
     local $ENV{PATH_INFO} = '/module_name/rm1';
     my $output = CGI::Application::Dispatch->dispatch();
@@ -42,43 +45,43 @@ my $junk;
     contains_string($output, 'Module::Name->rm1', 'dispatch(): module_name');
 }
 
-# 8
+BEGIN { $COUNT += 1 }
+
 # prefix
 {
     local $ENV{PATH_INFO} = '/module_name/rm2';
-    $output = CGI::Application::Dispatch->dispatch(
-        prefix => 'MyApp',
-    );
+    $output = CGI::Application::Dispatch->dispatch(prefix => 'MyApp',);
     contains_string($output, 'MyApp::Module::Name->rm2', 'dispatch(): prefix');
 }
 
-# 9
+BEGIN { $COUNT += 1 }
+
 # grabs the RM from the PATH_INFO
 {
+
     # with run mode
     local $ENV{PATH_INFO} = '/module_name/rm2';
-    $output = CGI::Application::Dispatch->dispatch(
-        prefix => 'MyApp',
-    );
+    $output = CGI::Application::Dispatch->dispatch(prefix => 'MyApp',);
     contains_string($output, 'MyApp::Module::Name->rm2', 'RM correct');
 }
 
-# 10
+BEGIN { $COUNT += 1 }
+
 # extra things passed to dispatch() get passed into new()
 {
     local $ENV{PATH_INFO} = '/module_name/rm3';
     $output = CGI::Application::Dispatch->dispatch(
-        prefix  => 'MyApp',
-        PARAMS  => {
-            my_param => 'testing',
-        },
+        prefix => 'MyApp',
+        PARAMS => {my_param => 'testing',},
     );
     contains_string($output, 'MyApp::Module::Name->rm3 my_param=testing', 'PARAMS passed through');
 }
 
-# 11..12
-# use default 
+BEGIN { $COUNT += 2 }
+
+# use default
 {
+
     # using short cuts names
     local $ENV{PATH_INFO} = '';
     $output = CGI::Application::Dispatch->dispatch(
@@ -96,7 +99,8 @@ my $junk;
     contains_string($output, 'MyApp::Module::Name->rm2', 'default');
 }
 
-# 13
+BEGIN { $COUNT += 1 }
+
 # override translate_module_name()
 {
     local $ENV{PATH_INFO} = '/something_strange';
@@ -104,9 +108,11 @@ my $junk;
     contains_string($output, 'MyApp::Module::Name->rm1', 'override translate_module_name()');
 }
 
-# 14..15
+BEGIN { $COUNT += 2 }
+
 # cause errors
 {
+
     # non-existant module
     local $ENV{PATH_INFO} = '/foo';
     $output = CGI::Application::Dispatch->dispatch();
@@ -118,20 +124,24 @@ my $junk;
     like($output, qr/Internal Server Error/i);
 }
 
-# 16
+BEGIN { $COUNT += 1 }
+
 # args_to_new
 {
     local $ENV{PATH_INFO} = '/module_name/rm4';
     $output = CGI::Application::Dispatch->dispatch(
         prefix      => 'MyApp',
-        args_to_new => {
-            PARAMS => { my_param => 'more testing' },
-        },
+        args_to_new => {PARAMS => {my_param => 'more testing'},},
     );
-    contains_string($output, 'MyApp::Module::Name->rm3 my_param=more testing', 'PARAMS passed through');
+    contains_string(
+        $output,
+        'MyApp::Module::Name->rm3 my_param=more testing',
+        'PARAMS passed through'
+    );
 }
 
-# 17..24
+BEGIN { $COUNT += 9 }
+
 # use a full dispatch table in a subclass
 {
     local $ENV{PATH_INFO} = '/module_name';
@@ -144,11 +154,19 @@ my $junk;
 
     local $ENV{PATH_INFO} = '/module_name/rm3/stuff';
     $output = MyApp::DispatchTable->dispatch();
-    contains_string($output, 'MyApp::Module::Name->rm3 my_param=stuff', 'matched :app/:rm/:my_param');
-    
+    contains_string(
+        $output,
+        'MyApp::Module::Name->rm3 my_param=stuff',
+        'matched :app/:rm/:my_param'
+    );
+
     local $ENV{PATH_INFO} = '/module_name/bar/stuff';
     $output = MyApp::DispatchTable->dispatch();
-    contains_string($output, 'MyApp::Module::Name->rm3 my_param=stuff', 'matched :app/bar/:my_param');
+    contains_string(
+        $output,
+        'MyApp::Module::Name->rm3 my_param=stuff',
+        'matched :app/bar/:my_param'
+    );
 
     local $ENV{PATH_INFO} = '/foo/bar';
     $output = MyApp::DispatchTable->dispatch();
@@ -164,48 +182,49 @@ my $junk;
 
     local $ENV{PATH_INFO} = '/module_name/baz/this/is/extra';
     $output = MyApp::DispatchTable->dispatch();
-    contains_string($output, 'MyApp::Module::Name->rm5 dispatch_url_remainder=this/is/extra', 'url remainder');
+    contains_string(
+        $output,
+        'MyApp::Module::Name->rm5 dispatch_url_remainder=this/is/extra',
+        'url remainder'
+    );
 
     local $ENV{PATH_INFO} = '/module_name/bap/this/is/extra';
     $output = MyApp::DispatchTable->dispatch();
-    contains_string($output, 'MyApp::Module::Name->rm5 the_rest=this/is/extra', 'named url remainder');
+    contains_string(
+        $output,
+        'MyApp::Module::Name->rm5 the_rest=this/is/extra',
+        'named url remainder'
+    );
 }
 
-# 26
+BEGIN { $COUNT += 1 }
+
 # local args_to_new
 {
     local $ENV{PATH_INFO} = '/module_name/local_args_to_new';
     $output = CGI::Application::Dispatch->dispatch(
-        prefix      => 'MyApp',
-        table => [
-            ':app/:rm' => {
-                args_to_new => {
-                    TMPL_PATH => 'events',
-                },
-            },
-        ],
+        prefix => 'MyApp',
+        table  => [':app/:rm' => {args_to_new => {TMPL_PATH => 'events',},},],
 
     );
     contains_string($output, 'events', 'local args_to_new works');
 }
 
+BEGIN { $COUNT += 1 }
 
-# 27
-# 404 
+# 404
 {
     local $ENV{PATH_INFO} = '/somewhere_else';
     $output = CGI::Application::Dispatch->dispatch(
-        prefix      => 'MyApp',
-        table => [
-            ':app/:rm' => {
-                args_to_new => {
-                    TMPL_PATH => 'events',
-                },
-            },
-        ],
+        prefix => 'MyApp',
+        table  => [':app/:rm' => {args_to_new => {TMPL_PATH => 'events',},},],
 
     );
-    like_string($output, qr/404 not found/i, "proper 404 error is returned when PATH_INFO isn't parsed.");
+    like_string(
+        $output,
+        qr/404 not found/i,
+        "proper 404 error is returned when PATH_INFO isn't parsed."
+    );
 }
 
 # restore STDERR
