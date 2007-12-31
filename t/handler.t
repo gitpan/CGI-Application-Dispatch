@@ -8,10 +8,10 @@ if($@) {
     plan(skip_all => 'Apache::Test is not installed');
 } else {
     require Apache::Test;
-    Apache::Test->import(qw(have_lwp need_module :withtestmore));
     require Apache::TestRequest;
-    require Apache::TestUtil;
-    plan tests => 61, Apache::Test::need_module('Apache::TestMB'), Apache::Test::have_lwp();
+    Apache::Test->import(qw(have_lwp need_module :withtestmore));
+    Apache::TestRequest->import(qw(GET POST));
+    plan(tests => 61, need_module('Apache::TestMB'), have_lwp());
 }
 
 my $response;
