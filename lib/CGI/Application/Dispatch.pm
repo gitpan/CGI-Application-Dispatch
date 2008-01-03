@@ -4,7 +4,7 @@ use warnings;
 use Carp qw(carp cluck);
 use Exception::Class::TryCatch qw(catch);
 
-our $VERSION = '2.12_01';
+our $VERSION = '2.12';
 our $DEBUG   = 0;
 
 BEGIN {
@@ -722,7 +722,7 @@ as 'r'.
 
 If you need more customization than can be accomplished with just L<prefix>
 and L<default>, then it would be best to just subclass CGI::Application::Dispatch
-and override L<dispatch_args> since this method uses L<dispatch> to do the heavy lifting.
+and override L<dispatch_args> since C<handler()> uses L<dispatch> to do the heavy lifting.
 
     package MyApp::Dispatch;
     use base 'CGI::Application::Dispatch';
