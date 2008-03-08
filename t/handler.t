@@ -1,7 +1,9 @@
 use strict;
 use warnings;
 use Test::More;
-our $COUNT = 0;
+
+my $COUNT;
+BEGIN { $COUNT = 0 };
 
 eval { require Apache::Test };
 if($@) {
@@ -11,7 +13,7 @@ if($@) {
     require Apache::TestRequest;
     Apache::Test->import(qw(have_lwp need_module :withtestmore));
     Apache::TestRequest->import(qw(GET POST));
-    plan(tests => 61, need_module('Apache::TestMB'), have_lwp());
+    plan(tests => $COUNT, need_module('Apache::TestMB'), have_lwp());
 }
 
 my $response;
