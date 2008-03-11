@@ -3,7 +3,7 @@ use Test::LongString max => 500;
 use strict;
 use warnings;
 use lib 't/lib';
-our $COUNT;
+my $COUNT;
 plan(tests => $COUNT);
 
 BEGIN { $COUNT += 5 }

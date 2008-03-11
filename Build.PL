@@ -1,4 +1,11 @@
-my $build_pkg = eval "require Apache::Test" ? 'Apache::TestMB' : 'Module::Build';
+my $have_apache_test = 0;
+my $build_pkg = 'Module::Build';
+eval "require Apache::Test";
+unless( $@ ) {
+    $build_pkg = 'Apache::TestMB';
+    $have_apache_test = 1;
+}
+
 eval "require $build_pkg";
 my $build = $build_pkg->new(
     module_name => 'CGI::Application::Dispatch',
@@ -12,8 +19,8 @@ my $build = $build_pkg->new(
     build_requires => {
         'Test::More'       => 0,
         'Test::LongString' => 0,
+        $have_apache_test ? ( 'Apache::Test' => 0 ) : (),
     },
-    create_makefile_pl => 'traditional',
 );
 
 $build->create_build_script;
