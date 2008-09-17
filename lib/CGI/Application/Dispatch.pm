@@ -4,7 +4,7 @@ use warnings;
 use Carp qw(carp cluck);
 use Exception::Class::TryCatch qw(catch);
 
-our $VERSION = '2.13_02';
+our $VERSION = '2.13';
 our $DEBUG   = 0;
 
 BEGIN {
@@ -1225,7 +1225,14 @@ comments about this module then please join us on the cgiapp mailing list by sen
 message to "cgiapp-subscribe@lists.erlbaum.net". There is also a community wiki located at
 L<http://www.cgi-app.org/>
 
+=head1 SOURCE CODE REPOSITORY
+
+A public source code repository for this project is hosted here:
+
+http://code.google.com/p/cgi-app-modules/source/checkout
+
 =head1 CONTRIBUTORS
+
 
 =over
 
@@ -1266,7 +1273,9 @@ a namespace of modules to run.
 
 L<CGI::Application>, L<Apache::Dispatch>
 
-=head1 LICENSE
+=head1 COPYRIGHT & LICENSE
+
+Copyright Michael Peters and Mark Stosberg 2008, all rights reserved. 
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.
