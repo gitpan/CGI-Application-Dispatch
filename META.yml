@@ -1,12 +1,10 @@
 ---
 name: CGI-Application-Dispatch
-version: 2.15
+version: 2.16
 author:
   - 'Michael Peters <mpeters@plusthree.com>'
 abstract: Dispatch requests to CGI::Application based objects
 license: perl
-resources:
-  license: http://dev.perl.org/licenses/
 requires:
   CGI::Application: 3.2
   Exception::Class: 0
@@ -15,14 +13,16 @@ requires:
 build_requires:
   Test::LongString: 0
   Test::More: 0
-provides:
-  CGI::Application::Dispatch:
-    file: lib/CGI/Application/Dispatch.pm
-    version: 2.15
-  CGI::Application::Dispatch::Regexp:
-    file: lib/CGI/Application/Dispatch/Regexp.pm
-    version: 2.13
-generated_by: Module::Build version 0.3
+generated_by: Module::Build version 0.32
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.2.html
   version: 1.2
+provides:
+  CGI::Application::Dispatch:
+    file: lib/CGI/Application/Dispatch.pm
+    version: 2.16
+  CGI::Application::Dispatch::Regexp:
+    file: lib/CGI/Application/Dispatch/Regexp.pm
+    version: 2.13
+resources:
+  license: ~
