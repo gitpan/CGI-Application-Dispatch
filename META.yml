@@ -3,11 +3,13 @@ abstract: 'Dispatch requests to CGI::Application based objects'
 author:
   - 'Michael Peters <mpeters@plusthree.com>'
 build_requires:
+  Plack: 0.9956
   Test::LongString: 0
   Test::More: 0
 configure_requires:
-  Module::Build: 0.36
-generated_by: 'Module::Build version 0.3607'
+  Module::Build: 0.38
+dynamic_config: 1
+generated_by: 'Module::Build version 0.38, CPAN::Meta::Converter version 2.110930'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -16,16 +18,20 @@ name: CGI-Application-Dispatch
 provides:
   CGI::Application::Dispatch:
     file: lib/CGI/Application/Dispatch.pm
-    version: 2.18
+    version: 3.00
+  CGI::Application::Dispatch::PSGI:
+    file: lib/CGI/Application/Dispatch/PSGI.pm
+    version: 3.00
   CGI::Application::Dispatch::Regexp:
     file: lib/CGI/Application/Dispatch/Regexp.pm
     version: 2.13
 requires:
-  CGI::Application: 3.2
-  Exception::Class: 0
+  CGI::Application: 4.50
   Exception::Class::TryCatch: 0
+  HTTP::Exception: 0
+  Try::Tiny: 0
   perl: v5.6.0
   version: 0.82
 resources:
   license: http://dev.perl.org/licenses/
-version: 2.18
+version: 3.00
