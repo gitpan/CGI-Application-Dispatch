@@ -4,7 +4,7 @@ author:
   - 'Michael Peters <mpeters@plusthree.com>'
 build_requires:
   CGI::PSGI: 0
-  Plack::Test: 0.9956
+  Plack: 0.9956
   Test::LongString: 0
   Test::More: 0
 configure_requires:
@@ -19,10 +19,10 @@ name: CGI-Application-Dispatch
 provides:
   CGI::Application::Dispatch:
     file: lib/CGI/Application/Dispatch.pm
-    version: 3.02
+    version: 3.03
   CGI::Application::Dispatch::PSGI:
     file: lib/CGI/Application/Dispatch/PSGI.pm
-    version: 3.00
+    version: 3.03
   CGI::Application::Dispatch::Regexp:
     file: lib/CGI/Application/Dispatch/Regexp.pm
     version: 2.13
@@ -36,4 +36,4 @@ requires:
   version: 0.82
 resources:
   license: http://dev.perl.org/licenses/
-version: 3.02
+version: 3.03
