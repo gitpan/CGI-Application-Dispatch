@@ -42,15 +42,15 @@
    "provides" : {
       "CGI::Application::Dispatch" : {
          "file" : "lib/CGI/Application/Dispatch.pm",
-         "version" : "3.03"
+         "version" : "3.04"
       },
       "CGI::Application::Dispatch::PSGI" : {
          "file" : "lib/CGI/Application/Dispatch/PSGI.pm",
-         "version" : "3.03"
+         "version" : "3.04"
       },
       "CGI::Application::Dispatch::Regexp" : {
          "file" : "lib/CGI/Application/Dispatch/Regexp.pm",
-         "version" : "2.13"
+         "version" : "3.04"
       }
    },
    "release_status" : "stable",
@@ -59,5 +59,5 @@
          "http://dev.perl.org/licenses/"
       ]
    },
-   "version" : "3.03"
+   "version" : "3.04"
 }

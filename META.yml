@@ -19,13 +19,13 @@ name: CGI-Application-Dispatch
 provides:
   CGI::Application::Dispatch:
     file: lib/CGI/Application/Dispatch.pm
-    version: 3.03
+    version: 3.04
   CGI::Application::Dispatch::PSGI:
     file: lib/CGI/Application/Dispatch/PSGI.pm
-    version: 3.03
+    version: 3.04
   CGI::Application::Dispatch::Regexp:
     file: lib/CGI/Application/Dispatch/Regexp.pm
-    version: 2.13
+    version: 3.04
 requires:
   CGI::Application: 4.50
   Exception::Class: 1.2
@@ -36,4 +36,4 @@ requires:
   version: 0.82
 resources:
   license: http://dev.perl.org/licenses/
-version: 3.03
+version: 3.04
