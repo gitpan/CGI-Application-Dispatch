@@ -31,7 +31,6 @@
          "requires" : {
             "CGI::Application" : "4.50",
             "Exception::Class" : "1.2",
-            "Exception::Class::TryCatch" : 0,
             "HTTP::Exception" : 0,
             "Try::Tiny" : 0,
             "perl" : "v5.6.0",
@@ -42,7 +41,7 @@
    "provides" : {
       "CGI::Application::Dispatch" : {
          "file" : "lib/CGI/Application/Dispatch.pm",
-         "version" : "3.04"
+         "version" : "3.05"
       },
       "CGI::Application::Dispatch::PSGI" : {
          "file" : "lib/CGI/Application/Dispatch/PSGI.pm",
@@ -59,5 +58,5 @@
          "http://dev.perl.org/licenses/"
       ]
    },
-   "version" : "3.04"
+   "version" : "3.05"
 }
