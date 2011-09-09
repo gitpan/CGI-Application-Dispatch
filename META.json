@@ -41,7 +41,7 @@
    "provides" : {
       "CGI::Application::Dispatch" : {
          "file" : "lib/CGI/Application/Dispatch.pm",
-         "version" : "3.06"
+         "version" : "3.07"
       },
       "CGI::Application::Dispatch::PSGI" : {
          "file" : "lib/CGI/Application/Dispatch/PSGI.pm",
@@ -58,5 +58,5 @@
          "http://dev.perl.org/licenses/"
       ]
    },
-   "version" : "3.06"
+   "version" : "3.07"
 }
