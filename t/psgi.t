@@ -169,7 +169,7 @@ my $junk;
               'named url remainder';
       };
   
-  # args_to_new
+  # args_to_new, throwing HTTP::Exceptions
   test_psgi
       app => CGI::Application::Dispatch::PSGI->as_psgi(
           prefix => 'MyApp',
@@ -178,10 +178,16 @@ my $junk;
       ),
       client => sub {
           my $cb = shift;
-          like
-              $cb->(GET '/module_name/local_args_to_new')->content,
+
+          # args_to_new
+          like $cb->(GET '/module_name/local_args_to_new')->content,
               qr/events/, 
               'args_to_new works';
+
+           # When an HTTP::Exception is thrown from error_mode, it is passed through.  
+           my $res = $cb->(GET '/module_name/throw_http_exception');
+           is($res->code,405,"a thrown HTTP::Exception is bubbled up");  
+           like($res->as_string, qr/my 405 exception/, "HTTP::Exception content is passed along"); 
       };
 
 # 404
@@ -195,6 +201,53 @@ test_psgi
         like
             $cb->(GET '/somewhere_else')->status_line,
             qr/404 not found/i,
+    };
+
+# auto_rest
+test_psgi
+    app => CGI::Application::Dispatch::PSGI->as_psgi(
+        auto_rest => 1,
+        prefix    => 'MyApp',
+        table     => [
+            ':app/rm3[get]' => { rm => 'get_rm3', auto_rest => 0 },
+            ':app/rm4'      => { auto_rest => 0, rm => 'rm4' },
+            ':app/rm2'      => { auto_rest_lc => 1, rm => 'rm2' },
+            ':app/:rm?'     => { },
+        ],
+    ),
+    client => sub {
+        my $cb = shift;
+        my $res = $cb->(GET '/module_rest/rm1');
+        ok($res->is_success);
+        like($res->content, qr{MyApp::Module::Rest->rm1_GET}, 'auto_rest GET');
+
+        $res = $cb->(POST '/module_rest/rm1');
+        ok($res->is_success);
+        like($res->content, qr{MyApp::Module::Rest->rm1_POST}, 'auto_rest POST');
+
+        $res = $cb->(POST '/module_rest/rm2');
+        ok($res->is_success);
+        $content = $res->content;
+        like($res->content, qr{App::Module::Rest->rm2_post}, 'auto_rest_lc POST');
+
+        $res = $cb->(GET '/module_rest/rm3');
+        ok($res->is_success);
+        $content = $res->content;
+        like($res->content, qr{App::Module::Rest->get_rm3}, 'HTTP method in rule');
+
+        $res = $cb->(GET '/module_rest/rm4');
+        ok($res->is_success);
+        like($res->content, qr{App::Module::Rest->rm4}, 'non-auto_rest GET');
+        unlike($res->content, qr{App::Module::Rest->rm4_GET}, 'non-auto_rest GET');
+
+        $res = $cb->(POST '/module_rest/rm4');
+        ok($res->is_success);
+        like($res->content, qr{App::Module::Rest->rm4}, 'non-auto_rest POST');
+        unlike($res->content, qr{App::Module::Rest->rm4_POST}, 'non-auto_rest POST');
+
+        $res = $cb->(GET '/module_rest');
+        ok($res->is_success);
+        like($res->content, qr{MyApp::Module::Rest->rm1_GET}, 'auto_rest check of /:rm? and start_mode');
     };
 
 # restore STDERR

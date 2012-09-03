@@ -4,7 +4,7 @@
       "Michael Peters <mpeters@plusthree.com>"
    ],
    "dynamic_config" : 1,
-   "generated_by" : "Module::Build version 0.38, CPAN::Meta::Converter version 2.110930",
+   "generated_by" : "Module::Build version 0.4003, CPAN::Meta::Converter version 2.112150",
    "license" : [
       "perl_5"
    ],
@@ -41,11 +41,11 @@
    "provides" : {
       "CGI::Application::Dispatch" : {
          "file" : "lib/CGI/Application/Dispatch.pm",
-         "version" : "3.07"
+         "version" : "3.10"
       },
       "CGI::Application::Dispatch::PSGI" : {
          "file" : "lib/CGI/Application/Dispatch/PSGI.pm",
-         "version" : "3.04"
+         "version" : "3.10"
       },
       "CGI::Application::Dispatch::Regexp" : {
          "file" : "lib/CGI/Application/Dispatch/Regexp.pm",
@@ -56,7 +56,10 @@
    "resources" : {
       "license" : [
          "http://dev.perl.org/licenses/"
-      ]
+      ],
+      "repository" : {
+         "url" : "https://github.com/markstos/CGI--Application--Dispatch"
+      }
    },
-   "version" : "3.07"
+   "version" : "3.10"
 }
