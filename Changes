@@ -1,5 +1,9 @@
 Revision history for Perl extension CGI::Application::Dispatch.
 
+3.12 September 10th, 2012
+    [BUG FIXES]
+    - Further fix diagnostic message in some cases when exceptions are thrown.  (Michael Lackhoff)
+
 3.11 September 10th, 2012
     (No code changes) 
 

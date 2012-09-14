@@ -1,10 +1,10 @@
 package CGI::Application::Dispatch::PSGI;
 use strict;
 use warnings;
-use Carp qw(carp cluck);
+use Carp 'carp';
 use HTTP::Exception;
 
-our $VERSION = '3.11';
+our $VERSION = '3.12';
 our $DEBUG   = 0;
 
 =pod

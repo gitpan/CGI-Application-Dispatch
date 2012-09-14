@@ -1,10 +1,10 @@
 package CGI::Application::Dispatch;
 use strict;
 use warnings;
-use Carp qw(carp cluck);
+use Carp 'carp';
 use Try::Tiny;
 
-our $VERSION = '3.11';
+our $VERSION = '3.12';
 our $DEBUG   = 0;
 
 BEGIN {
@@ -419,7 +419,7 @@ sub dispatch {
         $output = $self->_run_app($module, $rm, $local_args_to_new);
     } catch {
         my $e = $_;
-        unless ( ref $e ) {
+        unless ( ref $e && $e->isa('Exception::Class::Base') ) {
             $e = Exception::Class::Base->new($e);
         }
         $output = $self->http_error($e, $args{error_document});
