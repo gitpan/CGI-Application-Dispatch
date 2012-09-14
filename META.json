@@ -41,11 +41,11 @@
    "provides" : {
       "CGI::Application::Dispatch" : {
          "file" : "lib/CGI/Application/Dispatch.pm",
-         "version" : "3.10"
+         "version" : "3.11"
       },
       "CGI::Application::Dispatch::PSGI" : {
          "file" : "lib/CGI/Application/Dispatch/PSGI.pm",
-         "version" : "3.10"
+         "version" : "3.11"
       },
       "CGI::Application::Dispatch::Regexp" : {
          "file" : "lib/CGI/Application/Dispatch/Regexp.pm",
@@ -61,5 +61,5 @@
          "url" : "https://github.com/markstos/CGI--Application--Dispatch"
       }
    },
-   "version" : "3.10"
+   "version" : "3.11"
 }
